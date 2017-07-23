@@ -3,7 +3,7 @@
 
 typedef uint8_t v16si __attribute__ ((vector_size (16)));
 
-void process(char *in, size_t len, unsigned char *tBytes, char *out) {
+void run(char *in, size_t len, unsigned char *tBytes, char *out) {
     unsigned char a, b, c, d, e, f, g;
     int i, j;
     v16si s = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };

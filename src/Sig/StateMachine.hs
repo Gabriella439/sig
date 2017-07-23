@@ -1,17 +1,55 @@
 {-# LANGUAGE DeriveAnyClass  #-}
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
-
 {-# OPTIONS_GHC -O0 #-}
 
-module Sig.Matrix where
+-- | This module provides the `StateMachine` type
+
+module Sig.StateMachine
+    ( -- * StateMachine
+      StateMachine(..)
+    ) where
 
 import Data.Binary (Binary(..))
 import Dhall (Interpret)
 import GHC.Generics (Generic)
 import Sig.Transition (Transition(..))
 
-data Matrix = Matrix
+{-| The `StateMachine` type represents a state machine where:
+
+    * the machine can be in one of 16 `Sig.State.State`s
+    * the input to each transition is a single byte
+
+    The `StateMachine` records the `Transition` for each byte as a separate
+    field (for a total of 256 fields, one per possible byte).  For example, this
+    `StateMachine`:
+
+> StateMachine
+>     { onByte000 =
+>         Transition
+>             { fromState00To = S03
+>             , fromState01To = S02
+>             ...
+>             }
+>     ...
+>     , onByte032 =
+>         Transition
+>             { fromState00To = S09
+>             ...
+>             , fromState05To = S11
+>             ...
+>             }
+>     ...
+>     }
+
+    ... represents a state machine where:
+
+    * if the machine is in state @#0@ and receives byte 0 (i.e. @'\0'@), then
+      the machine transitions to state @#3@
+    * if the machine is in state @#5@ and receives byte 32 (i.e. @' '@), then
+      the machine transitions to state @#11@
+-}
+data StateMachine = StateMachine
     { onByte000 :: !Transition
     , onByte001 :: !Transition
     , onByte002 :: !Transition
@@ -270,8 +308,8 @@ data Matrix = Matrix
     , onByte255 :: !Transition
     } deriving (Generic, Interpret, Show)
 
-instance Binary Matrix where
-    put (Matrix {..}) = do
+instance Binary StateMachine where
+    put (StateMachine {..}) = do
         put onByte000
         put onByte001
         put onByte002
@@ -786,4 +824,4 @@ instance Binary Matrix where
         onByte253 <- get
         onByte254 <- get
         onByte255 <- get
-        return (Matrix {..})
+        return (StateMachine {..})

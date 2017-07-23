@@ -9,4 +9,4 @@ main :: IO ()
 main = do
     k     <- Control.Concurrent.getNumCapabilities
     bytes <- System.IO.MMap.mmapFileByteString "test.txt" Nothing
-    print (Sig.parallelProcess Sig.Examples.cStyleComments k bytes)
+    print (Sig.runInParallel Sig.Examples.cStyleComments k bytes)

@@ -2,12 +2,50 @@
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Sig.Transition where
+-- | This module provides the `Transition` type
+
+module Sig.Transition
+    ( -- * Transition
+      Transition(..)
+    ) where
 
 import Data.Binary (Binary(..))
 import Dhall (Interpret)
 import GHC.Generics (Generic)
 import Sig.State (State(..))
+
+{-| The `Transition` type encodes one step of the state machine state that each
+    initial state transitions to.  For example, the following transition:
+
+> Transition
+>     { fromState00To = S03
+>     , fromState01To = S02
+
+    ... specifies that if the state machine is currently in State @#0@ then the
+    state machine should transition to state @3@ or if the state machine is
+    currently in State @#1@ then the state machine should transition to state
+    @2@
+
+    You can create a `Transition` by:
+
+    * using the `Transition` constructor
+    * decoding a `Transition` from a `Data.ByteString.Lazy.ByteString` using the
+      `Binary` instance
+    * decoding a `Transition` from a Dhall expression using the `Interpret`
+      instance
+    * using `mempty`, which represents the `Transition` that does nothing
+
+    You can combine `Transition`s by:
+
+    * using @`mappend` x y@, which represents the transition @x@ followed by the
+      transition @y@
+
+    You can consume `Transition`s:
+
+    * indirectly, using `Sig.run` and `Sig.runInParallel`
+    * directly, by encoding a `Transition` to a
+      `Data.ByteString.Lazy.ByteString` using the `Binary` instance
+-}
 
 data Transition = Transition
     { fromState00To :: !State

@@ -2,11 +2,11 @@
 
 module Sig.Examples where
 
-import Sig (Matrix(..), State(..), Transition(..))
+import Sig (StateMachine(..), State(..), Transition(..))
 
 -- Example transition matrix from paper for matching C-style comments
-cStyleComments :: Matrix
-cStyleComments = Matrix {..}
+cStyleComments :: StateMachine
+cStyleComments = StateMachine {..}
   where
     def = mempty
         { fromState00To = S00

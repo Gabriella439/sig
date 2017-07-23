@@ -1,13 +1,44 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric  #-}
 
-module Sig.State where
+-- | This module provides the `State` type
+
+module Sig.State
+    ( -- * State
+      State(..)
+    ) where
 
 import Data.Binary (Binary(..))
 import Data.Word (Word8)
 import Dhall (Interpret)
 import GHC.Generics (Generic)
 
+{-| This library supports state machines with up to 16 states
+
+    The `Sig.Transition.Transition` type uses this type to specify the final
+    state that each initial state transitions to.  For example, a
+    `Sig.Transition.Transition` type with the following field:
+
+> Transition
+>     { fromState00To = S03
+>     ...
+
+    ... specifies that if the state machine is currently in State @#0@ then the
+    state machine should transition to state @3@.
+
+    You can create a `State` by:
+
+    * using the constructors (i.e. `S00`, `S01`, etc.)
+    * decoding a `State` from a `Data.ByteString.Lazy.ByteString` using the
+      `Binary` instance
+    * decoding a `State` from a Dhall expression using the `Interpret` instance
+
+    You can consume a `State`:
+
+    * indirectly, using `Sig.run` and `Sig.runInParallel`
+    * directly, by encoding to a `Data.ByteString.Lazy.ByteString` using the
+      `Binary` instance
+-}
 data State
     = S00
     | S01

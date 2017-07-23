@@ -25,6 +25,8 @@ cStyleComments = Sig.buildStateMachine f
     f  _ S02 = S02
     f  _ S03 = S02
 
+    f  _ _   = S00
+
 {-| `StateMachine` that tests for the presence of an ASCII-encoded
     @"Hello, world!"@ anywhere within the `Data.ByteString.ByteString`
 -}

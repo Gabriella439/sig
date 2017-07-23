@@ -31,8 +31,11 @@ foreign import ccall "run" c_run
     `run` returns a `Transition` representing what each final state would be for
     every possible initial state
 
-    Under the hood `run` uses an C implementation that takes advantage of the
-    @pshufb@ instruction to efficiently simulate 16 states at a time
+    Under the hood `run` uses an C implementation that takes advantage of
+    Intel's @pshufb@ instruction to efficiently simulate 16 states at a time.
+    On modern processors you should expect on the order of 1 GB/s processing
+    speed (sometimes less, sometimes more, depending on the processor).  The
+    performance is completely insensitive to the choice of state machine
 -}
 run :: StateMachine -> ByteString -> Transition
 run matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
@@ -54,7 +57,24 @@ chunkBytes n bytes =
   where
     ~(prefix, suffix) = Data.ByteString.splitAt n bytes
 
--- | Split the `ByteString` into @k@ chunks and call `run` in parallel
+{-| `runInParallel` is the same as `run` except more parallel
+
+    The first argument specifies how many threads to use to accelerate the
+    computation.  A good rule of thumb is to use the number of cores your
+    machine has, like this:
+
+    > ...
+    > numCores <- Control.Concurrent.getNumCapabilities
+    > let transition = runInParallel numCores stateMachine bytes
+    > ...
+
+    In other words, @runInParallel n@ always computes the same result as @run@,
+    except faster
+
+    `runInParallel` is \"embarassingly parallel\", meaning that the performance
+    scales linearly with the number of available cores.  That in turn means that
+    you should expect on the order of 1 GB\/s\/core processing speed
+-}
 runInParallel :: Int -> StateMachine -> ByteString -> Transition
 runInParallel numThreads matrix bytes =
     mconcat

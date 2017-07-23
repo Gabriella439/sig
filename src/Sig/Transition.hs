@@ -5,29 +5,28 @@
 module Sig.Transition where
 
 import Data.Binary (Binary(..))
-import Control.DeepSeq (NFData)
 import Dhall (Interpret)
 import GHC.Generics (Generic)
 import Sig.State (State(..))
 
 data Transition = Transition
-    { fromState00To :: State
-    , fromState01To :: State
-    , fromState02To :: State
-    , fromState03To :: State
-    , fromState04To :: State
-    , fromState05To :: State
-    , fromState06To :: State
-    , fromState07To :: State
-    , fromState08To :: State
-    , fromState09To :: State
-    , fromState10To :: State
-    , fromState11To :: State
-    , fromState12To :: State
-    , fromState13To :: State
-    , fromState14To :: State
-    , fromState15To :: State
-    } deriving (Generic, Interpret, NFData, Show)
+    { fromState00To :: !State
+    , fromState01To :: !State
+    , fromState02To :: !State
+    , fromState03To :: !State
+    , fromState04To :: !State
+    , fromState05To :: !State
+    , fromState06To :: !State
+    , fromState07To :: !State
+    , fromState08To :: !State
+    , fromState09To :: !State
+    , fromState10To :: !State
+    , fromState11To :: !State
+    , fromState12To :: !State
+    , fromState13To :: !State
+    , fromState14To :: !State
+    , fromState15To :: !State
+    } deriving (Generic, Interpret, Show)
 
 instance Monoid Transition where
     mempty = Transition {..}

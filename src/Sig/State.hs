@@ -5,7 +5,6 @@ module Sig.State where
 
 import Data.Binary (Binary(..))
 import Data.Word (Word8)
-import Control.DeepSeq (NFData)
 import Dhall (Interpret)
 import GHC.Generics (Generic)
 
@@ -26,7 +25,7 @@ data State
     | S13
     | S14
     | S15
-    deriving (Generic, Interpret, NFData, Show)
+    deriving (Generic, Interpret, Show)
 
 instance Binary State where
     put S00 = put ( 0 :: Word8)

@@ -49,7 +49,7 @@ parallelProcess :: Matrix -> Int -> ByteString -> Transition
 parallelProcess matrix k bytes =
     mconcat
         (Control.Parallel.Strategies.parMap
-            Control.Parallel.Strategies.rdeepseq
+            Control.Parallel.Strategies.rseq
             (process matrix)
             (chunkBytes (len `div` k) bytes) )
   where

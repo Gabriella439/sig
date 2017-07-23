@@ -2,6 +2,8 @@
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
 
+{-# OPTIONS_GHC -O0 #-}
+
 module Sig.Matrix where
 
 import Data.Binary (Binary(..))

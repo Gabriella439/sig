@@ -16,6 +16,9 @@ library
   exposed-modules:     Sig
                      , Sig.Examples
                      , Sig.Main
+                     , Sig.Matrix
+                     , Sig.State
+                     , Sig.Transition
   build-depends:       base >=4.9 && <4.10
                      , binary
                      , bytestring

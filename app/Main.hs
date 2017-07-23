@@ -1,6 +1,6 @@
 module Main where
 
-import qualified Sig
+import qualified Sig.Main
 
 main :: IO ()
-main = Sig.main
+main = Sig.Main.main

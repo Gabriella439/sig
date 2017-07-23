@@ -14,6 +14,8 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Sig
+                     , Sig.Examples
+                     , Sig.Main
   build-depends:       base >=4.9 && <4.10
                      , binary
                      , bytestring

@@ -1,5 +1,7 @@
 module Sig.Main where
 
+import Sig (State(..))
+
 import qualified Control.Concurrent
 import qualified Sig
 import qualified Sig.Examples
@@ -9,4 +11,5 @@ main :: IO ()
 main = do
     k     <- Control.Concurrent.getNumCapabilities
     bytes <- System.IO.MMap.mmapFileByteString "test.txt" Nothing
-    print (Sig.runInParallel Sig.Examples.cStyleComments k bytes)
+    let transition = Sig.runInParallel k Sig.Examples.cStyleComments bytes
+    print (Sig.fromState00To transition == S13)

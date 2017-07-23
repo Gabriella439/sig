@@ -1,8 +1,11 @@
 module Sig
-    ( module Sig
-    , module Sig.State
-    , module Sig.StateMachine
-    , module Sig.Transition
+    ( run
+    , runInParallel
+    , StateMachine(..)
+    , buildStateMachine
+    , Transition(..)
+    , buildTransition
+    , State(..)
     ) where
 
 import Data.ByteString (ByteString)
@@ -23,7 +26,14 @@ import qualified Foreign.Marshal.Unsafe
 foreign import ccall "run" c_run
     :: Ptr CChar -> CSize -> Ptr CChar -> Ptr CChar -> IO ()
 
--- Wrap C @run@ in a pure interface
+{-| Efficiently run a `StateMachine` on a `ByteString`
+
+    `run` returns a `Transition` representing what each final state would be for
+    every possible initial state
+
+    Under the hood `run` uses an C implementation that takes advantage of the
+    @pshufb@ instruction to efficiently simulate 16 states at a time
+-}
 run :: StateMachine -> ByteString -> Transition
 run matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
     Foreign.Marshal.Unsafe.unsafeLocalState (do
@@ -45,12 +55,14 @@ chunkBytes n bytes =
     ~(prefix, suffix) = Data.ByteString.splitAt n bytes
 
 -- | Split the `ByteString` into @k@ chunks and call `run` in parallel
-runInParallel :: StateMachine -> Int -> ByteString -> Transition
-runInParallel matrix k bytes =
+runInParallel :: Int -> StateMachine -> ByteString -> Transition
+runInParallel numThreads matrix bytes =
     mconcat
         (Control.Parallel.Strategies.parMap
             Control.Parallel.Strategies.rseq
             (run matrix)
-            (chunkBytes (len `div` k) bytes) )
+            (chunkBytes subLen bytes) )
   where
     len = Data.ByteString.length bytes
+
+    subLen = ((len - 1) `div` numThreads) + 1

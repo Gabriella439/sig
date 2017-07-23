@@ -7,6 +7,7 @@
 module Sig.Transition
     ( -- * Transition
       Transition(..)
+    , buildTransition
     ) where
 
 import Data.Binary (Binary(..))
@@ -29,6 +30,7 @@ import Sig.State (State(..))
     You can create a `Transition` by:
 
     * using the `Transition` constructor
+    * using the `buildTransition` function
     * decoding a `Transition` from a `Data.ByteString.Lazy.ByteString` using the
       `Binary` instance
     * decoding a `Transition` from a Dhall expression using the `Interpret`
@@ -161,3 +163,36 @@ instance Binary Transition where
         fromState14To <- get
         fromState15To <- get
         return (Transition {..})
+
+{-| Build a `Transition` from a function
+
+    This comes in handy when you want to use Haskell's support for wildcard
+    pattern matches to avoid having to specify every `State`
+
+    For example:
+
+> buildTransition (\state -> case state of
+>     S00 -> S01
+>     S01 -> S02
+>     S02 -> S02
+>     _   -> S00 )
+-}
+buildTransition :: (State -> State) -> Transition
+buildTransition f = Transition {..}
+  where
+    fromState00To = f S00
+    fromState01To = f S01
+    fromState02To = f S02
+    fromState03To = f S03
+    fromState04To = f S04
+    fromState05To = f S05
+    fromState06To = f S06
+    fromState07To = f S07
+    fromState08To = f S08
+    fromState09To = f S09
+    fromState10To = f S10
+    fromState11To = f S11
+    fromState12To = f S12
+    fromState13To = f S13
+    fromState14To = f S14
+    fromState15To = f S15

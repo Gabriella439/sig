@@ -56,7 +56,7 @@ data State
     | S13
     | S14
     | S15
-    deriving (Generic, Interpret, Show)
+    deriving (Eq, Generic, Interpret, Ord, Show)
 
 instance Binary State where
     put S00 = put ( 0 :: Word8)

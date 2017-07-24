@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass  #-}
-{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -O0 #-}
 
@@ -13,8 +11,6 @@ module Sig.StateMachine
 
 import Data.Binary (Binary(..))
 import Data.Word (Word8)
-import Dhall (Interpret)
-import GHC.Generics (Generic)
 import Sig.State (State)
 import Sig.Transition (Transition(..))
 
@@ -60,8 +56,6 @@ import qualified Sig.Transition
     * using the `buildStateMachine` function
     * decoding a `StateMachine` from a `Data.ByteString.Lazy.ByteString` using
       the `Binary` instance
-    * decoding a `StateMachine` from a Dhall expression using the `Interpret`
-      instance
 
     You can consume `StateMachine`s by:
 
@@ -326,7 +320,7 @@ data StateMachine = StateMachine
     , onByte253 :: !Transition
     , onByte254 :: !Transition
     , onByte255 :: !Transition
-    } deriving (Generic, Interpret, Show)
+    } deriving (Show)
 
 instance Binary StateMachine where
     put (StateMachine {..}) = do

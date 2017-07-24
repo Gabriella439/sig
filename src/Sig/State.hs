@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
-
 -- | This module provides the `State` type
 
 module Sig.State
@@ -10,8 +7,6 @@ module Sig.State
 
 import Data.Binary (Binary(..))
 import Data.Word (Word8)
-import Dhall (Interpret)
-import GHC.Generics (Generic)
 
 {-| This library supports state machines with up to 16 states
 
@@ -31,7 +26,6 @@ import GHC.Generics (Generic)
     * using the constructors (i.e. `S00`, `S01`, etc.)
     * decoding a `State` from a `Data.ByteString.Lazy.ByteString` using the
       `Binary` instance
-    * decoding a `State` from a Dhall expression using the `Interpret` instance
 
     You can consume a `State`:
 
@@ -56,7 +50,7 @@ data State
     | S13
     | S14
     | S15
-    deriving (Eq, Generic, Interpret, Ord, Show)
+    deriving (Eq, Ord, Show)
 
 instance Binary State where
     put S00 = put ( 0 :: Word8)

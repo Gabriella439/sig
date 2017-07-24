@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass  #-}
-{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | This module provides the `Transition` type
@@ -11,8 +9,6 @@ module Sig.Transition
     ) where
 
 import Data.Binary (Binary(..))
-import Dhall (Interpret)
-import GHC.Generics (Generic)
 import Sig.State (State(..))
 
 {-| The `Transition` type encodes one step of the state machine by specifying
@@ -36,8 +32,6 @@ import Sig.State (State(..))
     * using the `buildTransition` function
     * decoding a `Transition` from a `Data.ByteString.Lazy.ByteString` using the
       `Binary` instance
-    * decoding a `Transition` from a Dhall expression using the `Interpret`
-      instance
     * using `mempty`, which represents the `Transition` that does nothing
 
     You can combine `Transition`s by:
@@ -69,7 +63,7 @@ data Transition = Transition
     , fromState13To :: !State
     , fromState14To :: !State
     , fromState15To :: !State
-    } deriving (Generic, Interpret, Show)
+    } deriving (Show)
 
 instance Monoid Transition where
     mempty = Transition {..}

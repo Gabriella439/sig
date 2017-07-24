@@ -15,12 +15,15 @@ import Dhall (Interpret)
 import GHC.Generics (Generic)
 import Sig.State (State(..))
 
-{-| The `Transition` type encodes one step of the state machine state that each
-    initial state transitions to.  For example, the following transition:
+{-| The `Transition` type encodes one step of the state machine by specifying
+    the next state that each initial state transitions to.  For example, the
+    following transition:
 
 > Transition
 >     { fromState00To = S03
 >     , fromState01To = S02
+>     ...
+>     }
 
     ... specifies that if the state machine is currently in State @#0@ then the
     state machine should transition to state @3@ or if the state machine is

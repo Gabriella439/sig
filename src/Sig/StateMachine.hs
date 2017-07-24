@@ -870,6 +870,8 @@ instance Binary StateMachine where
 >     f  _ S01 = S00
 >     f  _ S02 = S02
 >     f  _ S03 = S02
+>
+>     f  _ _   = S00
 -}
 buildStateMachine :: (Word8 -> State -> State) -> StateMachine
 buildStateMachine f = StateMachine {..}

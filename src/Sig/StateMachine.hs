@@ -16,29 +16,7 @@ import Sig.Transition (Transition(..))
 
 import qualified Data.Vector
 
-{-| A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
-
-    You can create a `StateMachine` by:
-
-    * using the `StateMachine` constructor to build a `StateMachine` from a
-      function
-    * using the `buildStateMachine` utility function
-    * decoding a `StateMachine` from a `Data.ByteString.Lazy.ByteString` using
-      the `Binary` instance
-    * using `mempty`, which represents a `StateMachine` that does nothing
-
-    You can combine `StateMachine`s by:
-
-    * using @`mappend` x y@, which runs the `StateMachine` @x@ and then the
-      `StateMachine` @y@ for each byte
-
-    You can consume `StateMachine`s by:
-
-    * using `Sig.run` and `Sig.runInParallel`
-    * using `runStateMachine` to access the underlying function
-    * encoding a `StateMachine` to a `Data.ByteString.Lazy.ByteString` using the
-      `Binary` instance
--}
+-- | A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
 newtype StateMachine = StateMachine { runStateMachine :: Word8 -> Transition }
     deriving (Monoid)
 

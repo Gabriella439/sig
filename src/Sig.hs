@@ -31,9 +31,9 @@ module Sig
 
       -- * Types
     , buildStateMachine
-    , StateMachine(..)
-    , Transition(..)
     , State(..)
+    , Transition(..)
+    , StateMachine(..)
     ) where
 
 import Data.ByteString (ByteString)

@@ -1,5 +1,5 @@
-{ mkDerivation, base, binary, bytestring, deepseq, dhall, mmap
-, parallel, stdenv
+{ mkDerivation, base, binary, bytestring, mmap, parallel, stdenv
+, vector
 }:
 mkDerivation {
   pname = "sig";
@@ -8,7 +8,7 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base binary bytestring deepseq dhall mmap parallel
+    base binary bytestring mmap parallel vector
   ];
   executableHaskellDepends = [ base ];
   homepage = "https://github.com/Gabriel439/Haskell-Sig-Library";

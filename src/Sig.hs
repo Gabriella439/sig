@@ -30,10 +30,9 @@ module Sig
     , runInParallel
 
       -- * Types
-    , StateMachine(..)
     , buildStateMachine
+    , StateMachine(..)
     , Transition(..)
-    , buildTransition
     , State(..)
     ) where
 
@@ -155,10 +154,16 @@ import qualified Foreign.Marshal.Unsafe
 foreign import ccall "run" c_run
     :: Ptr CChar -> CSize -> Ptr CChar -> Ptr CChar -> IO ()
 
-{-| Efficiently run a `StateMachine` on a `ByteString`
+{-| Run a `StateMachine` on a `ByteString`
 
     `run` returns a `Transition` representing what each final state would be for
     every possible initial state
+
+    The implementation is equivalent to:
+
+prop> run (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
+
+    ... except much more efficient
 -}
 run :: StateMachine -> ByteString -> Transition
 run matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
@@ -193,6 +198,8 @@ chunkBytes n bytes =
 
     `runInParallel` is \"embarassingly parallel\", meaning that the performance
     scales linearly with the number of available cores
+
+prop> runInParallel n (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
 -}
 runInParallel :: Int -> StateMachine -> ByteString -> Transition
 runInParallel numThreads matrix bytes =

@@ -30,28 +30,6 @@ instance Binary StateMachine where
 
 {-| Convenient utility to build a `StateMachine` from a function of two
     arguments
-
-    Example usage:
-
-> cStyleComments :: StateMachine
-> cStyleComments = Sig.buildStateMachine f
->   where
->     f 42 S00 = S00
->     f 42 S01 = S02
->     f 42 S02 = S03
->     f 42 S03 = S03
-> 
->     f 47 S00 = S01
->     f 47 S01 = S01
->     f 47 S02 = S02
->     f 47 S03 = S00
-> 
->     f  _ S00 = S00
->     f  _ S01 = S00
->     f  _ S02 = S02
->     f  _ S03 = S02
->
->     f  _ _   = S00
 -}
 buildStateMachine :: (Word8 -> State -> State) -> StateMachine
 buildStateMachine f = StateMachine (fmap Transition f)

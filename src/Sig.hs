@@ -1,3 +1,7 @@
+{-# LANGUAGE BangPatterns   #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric  #-}
+
 {-| This library provides a very efficient implementation of parallel state
     machines running over `ByteString` inputs based on the following paper:
 
@@ -32,18 +36,20 @@ module Sig
 
     ) where
 
+import Data.Binary (Binary(..))
 import Data.ByteString (ByteString)
+import Data.Vector ((!))
+import Data.Word (Word8)
 import Foreign (Ptr)
 import Foreign.C.Types (CChar(..), CSize(..))
-import Sig.State
-import Sig.StateMachine
-import Sig.Transition
+import GHC.Generics (Generic)
 
 import qualified Control.Parallel.Strategies
 import qualified Data.Binary
 import qualified Data.ByteString
 import qualified Data.ByteString.Lazy
 import qualified Data.ByteString.Unsafe
+import qualified Data.Vector
 import qualified Foreign
 import qualified Foreign.Marshal.Unsafe
 
@@ -105,6 +111,64 @@ import qualified Foreign.Marshal.Unsafe
 -- >     bytes <- System.IO.MMap.mmapFileByteString "example.c" Nothing
 -- >     let transition = Sig.run n Sig.Examples.cStyleComments bytes
 -- >     print (runTransition transition S00 == S00)
+
+{-| This library supports state machines with up to 16 states (and may support
+    more in the future)
+
+    This type represents the set of possible states that the state machine can
+    be in
+-}
+data State
+    = S00
+    | S01
+    | S02
+    | S03
+    | S04
+    | S05
+    | S06
+    | S07
+    | S08
+    | S09
+    | S10
+    | S11
+    | S12
+    | S13
+    | S14
+    | S15
+    deriving (Binary, Bounded, Enum, Eq, Generic, Ord, Show)
+
+-- | A `Transition` is a function from a `State` to another `State`
+newtype Transition = Transition { runTransition :: State -> State }
+
+instance Monoid Transition where
+    mempty = Transition id
+
+    mappend (Transition f) (Transition g) = Transition (g . f)
+
+instance Binary Transition where
+    put (Transition f) = mapM_ (put . f) [minBound..maxBound]
+
+    get = do
+        let numStates = fromEnum (maxBound :: State) + 1
+        !ss <- Data.Vector.replicateM numStates get
+        return (Transition (\s -> ss ! fromEnum s))
+
+-- | A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
+newtype StateMachine = StateMachine { runStateMachine :: Word8 -> Transition }
+
+instance Binary StateMachine where
+    put (StateMachine k) = mapM_ (put . k) [minBound..maxBound]
+
+    get = do
+        let numBytes = fromEnum (maxBound :: Word8) + 1
+        ts <- Data.Vector.replicateM numBytes get
+        return (StateMachine (\word8 -> ts ! fromEnum word8))
+
+{-| Convenient utility to build a `StateMachine` from a function of two
+    arguments
+-}
+buildStateMachine :: (Word8 -> State -> State) -> StateMachine
+buildStateMachine f = StateMachine (fmap Transition f)
 
 foreign import ccall "run" c_run
     :: Ptr CChar -> CSize -> Ptr CChar -> Ptr CChar -> IO ()

@@ -7,33 +7,29 @@
 
     These state machines are \"parallel\" in two senses of the word:
 
-    * You can simulate multiple states in parallel
+    * The machine simulates multiple states in parallel
     * You can process the input `ByteString` itself in parallel
 
-    This state machine implementation gives excellent performance on the order
-    of 1 GB\/s\/core and the performance scales linearly with the number of
-    available cores because the algorithm is embarrassingly parallel.
+    This state machine implementation gives excellent performance which also
+    scales linearly with the number of available cores
 
-    The main limitation of this library is that the state machines are limited
-    to 16 states
+    The main limitation of this library is that the state machines are currently
+    limited to 16 states
 -}
 
 module Sig
     ( -- * Example
       -- $example
 
-      -- * Implementation
-      -- $implementation
-
-      -- * Running state machines
-      run
-    , runInParallel
-
-      -- * Types
-    , buildStateMachine
+      -- * Building state machines
+      buildStateMachine
     , State(..)
     , Transition(..)
     , StateMachine(..)
+
+      -- * Running state machines
+    , run
+
     ) where
 
 import Data.ByteString (ByteString)
@@ -53,7 +49,7 @@ import qualified Foreign.Marshal.Unsafe
 
 -- $example
 -- 
--- Here is an example of how you would define a state machine that parses
+-- Here is an example of how you would define a `StateMachine` that parses
 -- C-style block comments using four states (which you can find in the
 -- "Sig.Examples" module):
 --
@@ -72,29 +68,31 @@ import qualified Foreign.Marshal.Unsafe
 -- > cStyleComments = Sig.buildStateMachine f
 -- >   where
 -- >     -- 47 is the ASCII encoding for '/'
--- >     f 47 S00 = S01
+-- >     f 47 S00 = S01  -- Possible comment start: Go to state #1
 -- >     f 47 S01 = S01
 -- >     f 47 S02 = S02
--- >     f 47 S03 = S00
+-- >     f 47 S03 = S00  -- Confirmed comment end: Go to state #0
 -- >
 -- >     -- 42 is the ASCII encoding for '*'
 -- >     f 42 S00 = S00
--- >     f 42 S01 = S02
--- >     f 42 S02 = S03
+-- >     f 42 S01 = S02  -- Confirmed comment start: Go to state #2
+-- >     f 42 S02 = S03  -- Possible comment end: Go to state #3
 -- >     f 42 S03 = S03
 -- >
 -- >     -- This covers all other ASCII characters
--- >     f  _ S00 = S00
+-- >     f  _ S00 = S00  -- Still outside a comment: Stay on state #0
 -- >     f  _ S01 = S00
--- >     f  _ S02 = S02
+-- >     f  _ S02 = S02  -- Still inside a comment: Stay on state #2
 -- >     f  _ S03 = S02
 -- > 
 -- >     -- This covers all other states (which we don't use)
 -- >     f  _ _   = S00
 --
--- ... and here is an example of using the above state machine on a file:
+-- ... and here is an example of using the above `StateMachine` on a file:
 --
--- > import Sig (State(..))
+-- > module Sig.Main where
+-- >
+-- > import Sig (State(..), Transition(..))
 -- >
 -- > import qualified Control.Concurrent
 -- > import qualified Sig
@@ -105,68 +103,18 @@ import qualified Foreign.Marshal.Unsafe
 -- > main = do
 -- >     n     <- Control.Concurrent.getNumCapabilities
 -- >     bytes <- System.IO.MMap.mmapFileByteString "example.c" Nothing
--- >     let transition = Sig.runInParallel n Sig.Examples.cStyleComments bytes
--- >     print (Sig.fromState00To transition == S00)
-
-{- $implementation
- 
-    This algorithm revolves around the `Transition` type, which represents a
-    single step of the state machine.  For each possible starting state, a
-    `Transition` type specifies the next state to transition to.
-
-    This `Transition` type is a `Monoid` where:
-
-    * `mempty` is a `Transition` that does nothing (every state transitions to
-      itself)
-    * `mappend` combines two `Transition`s end-to-end (i.e. run the first
-      transition and then run the second transition)
-
-    We can take advantage of the fact that `Transition` is a `Monoid` to
-    simulate the state machine in parallel.  We compute the `Transition` for
-    each byte and then use a parallel `mconcat` to derive the `Transition` for
-    the entire `ByteString`.
-
-    Normally this parallel state machine simulation would be less efficient than
-    a single-threaded state machine simulation.  The naïve implementation of
-    `mappend` is much slower than single-stepping a state machine, so you would
-    need a large number of processors before the parallel implementation caught
-    up to the speed of the serial implementation.
-
-    However, Intel processors provide a CPU instruction called @pshufb@ that is
-    equivalent to `mappend` for `Transition`.  This means that we can:
-
-    * chunk up the input `ByteString`s into N smaller `ByteString`s (where N is
-      typically the number of processors)
-    * process each smaller `ByteString` in parallel using an efficient `mconcat`
-      written in C using the @pshufb@ instruction
-
-    This means that you should only expect good performance on Intel processors.
-    Additionally, this library uses @gcc@ intrinsics to emit the above
-    instruction so this package will not compile by default on OS X (which uses
-    @clang@).
-
-    This library only supports state machines of up to 16 states, but the
-    original paper describes how to support larger state machines using a
-    @blend@ instruction.  I'm not sure how to get @gcc@ to emit the @blend@
-    instruction, so this package is limited to 16 states for now.
--}
+-- >     let transition = Sig.run n Sig.Examples.cStyleComments bytes
+-- >     print (runTransition transition S00 == S00)
 
 foreign import ccall "run" c_run
     :: Ptr CChar -> CSize -> Ptr CChar -> Ptr CChar -> IO ()
 
-{-| Run a `StateMachine` on a `ByteString`
+{-| Wrap the @c_run@ function in a Haskell API
 
-    `run` returns a `Transition` representing what each final state would be for
-    every possible initial state
-
-    The implementation is equivalent to:
-
-prop> run (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
-
-    ... except much more efficient
+    prop> runSerial (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
 -}
-run :: StateMachine -> ByteString -> Transition
-run matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
+runSerial :: StateMachine -> ByteString -> Transition
+runSerial matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
     Foreign.Marshal.Unsafe.unsafeLocalState (do
         Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) ->
             Data.ByteString.Unsafe.unsafeUseAsCStringLen bytes (\(ptrIn, len) ->
@@ -185,7 +133,16 @@ chunkBytes n bytes =
   where
     ~(prefix, suffix) = Data.ByteString.splitAt n bytes
 
-{-| `runInParallel` is the same as `run` except in parallel
+{-| Run a `StateMachine` on a `ByteString`
+
+    `run` returns a `Transition` that computes what the final state would be for
+    each possible initial state
+
+    The implementation is equivalent to:
+
+    prop> run n (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
+
+    ... except much more efficient and parallel
 
     The first argument specifies how many threads to use to accelerate the
     computation.  A good rule of thumb is to use the number of cores your
@@ -193,20 +150,29 @@ chunkBytes n bytes =
 
     > ...
     > numCores <- Control.Concurrent.getNumCapabilities
-    > let transition = runInParallel numCores stateMachine bytes
+    > let transition = run numCores stateMachine bytes
     > ...
 
-    `runInParallel` is \"embarassingly parallel\", meaning that the performance
-    scales linearly with the number of available cores
+    ... or you can just specify @1@ thread for a serial implementation (which
+    will still be really efficient)
 
-prop> runInParallel n (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
+    `run` is \"embarassingly parallel\", meaning that the performance scales
+    linearly with the number of available cores
 -}
-runInParallel :: Int -> StateMachine -> ByteString -> Transition
-runInParallel numThreads matrix bytes =
+run :: Int
+    -- ^ Number of threads to use
+    -> StateMachine
+    -- ^ State machine to run over the input bytes
+    -> ByteString
+    -- ^ Input bytes to feed to the state machine
+    -> Transition
+    -- ^ Computed function from every starting state to every final state
+run 1          matrix bytes = runSerial matrix bytes
+run numThreads matrix bytes =
     mconcat
         (Control.Parallel.Strategies.parMap
             Control.Parallel.Strategies.rseq
-            (run matrix)
+            (runSerial matrix)
             (chunkBytes subLen bytes) )
   where
     len = Data.ByteString.length bytes

@@ -28,9 +28,8 @@ typedef uint8_t v16si __attribute__ ((vector_size (16)));
 //
 // The reason this code is a little more complex is to exploit instruction-level
 // parallelism.  We can use the fact that `mappend` (i.e. `__builtin_shuffle`)
-// is associative to to read in 7 values at a time and reassociate the
-// `mappend`s to build a balanced binary tree of `mappend`s for each 7 values,
-// like this:
+// is associative to read in 7 values at a time and reassociate the `mappend`s
+// to build a balanced binary tree of `mappend`s for each 7 values, like this:
 //
 //                       s6
 //                 /             \

@@ -16,7 +16,7 @@ library
   exposed-modules:     Sig
                      , Sig.Examples
                      , Sig.Main
-  build-depends:       base >=4.9 && <4.10
+  build-depends:       base >=4.9 && < 5
                      , binary
                      , bytestring
                      , parallel

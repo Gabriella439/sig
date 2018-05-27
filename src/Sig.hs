@@ -134,6 +134,9 @@ data State
     | S15
     deriving (Binary, Bounded, Enum, Eq, Generic, Ord, Show)
 
+numberOfStates :: Int
+numberOfStates = fromEnum (maxBound :: State) + 1
+
 -- | A `Transition` is a function from a `State` to another `State`
 newtype Transition = Transition { runTransition :: State -> State }
 
@@ -146,8 +149,7 @@ instance Binary Transition where
     put (Transition f) = mapM_ (put . f) [minBound..maxBound]
 
     get = do
-        let numStates = fromEnum (maxBound :: State) + 1
-        !ss <- Data.Vector.replicateM numStates get
+        !ss <- Data.Vector.replicateM numberOfStates get
         return (Transition (\s -> ss ! fromEnum s))
 
 -- | A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
@@ -179,9 +181,9 @@ runSerial matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
     Foreign.Marshal.Unsafe.unsafeLocalState (do
         Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) ->
             Data.ByteString.Unsafe.unsafeUseAsCStringLen bytes (\(ptrIn, len) ->
-                Foreign.allocaBytes 16 (\ptrOut -> do
+                Foreign.allocaBytes numberOfStates (\ptrOut -> do
                     c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
-                    Data.ByteString.packCStringLen (ptrOut, 16) ) ) ) ) ))
+                    Data.ByteString.packCStringLen (ptrOut, numberOfStates) ) ) ) ) ))
   where
     tBytes = Data.ByteString.Lazy.toStrict (Data.Binary.encode matrix)
 

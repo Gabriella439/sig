@@ -31,9 +31,13 @@ module Sig
     , Transition(..)
     , StateMachine(..)
 
+    , StateMachineC
+    , mkStateMachineC
+
       -- * Running state machines
     , run
     , runIO
+    , runIOC
 
     ) where
 
@@ -157,6 +161,12 @@ instance Binary Transition where
 -- | A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
 newtype StateMachine = StateMachine { runStateMachine :: Word8 -> Transition }
 
+-- | A 'StateMachineC' with cached 'Binary' representation
+data StateMachineC = SMC !StateMachine ByteString
+
+mkStateMachineC :: StateMachine -> StateMachineC
+mkStateMachineC sm = SMC sm (Data.ByteString.Lazy.toStrict (Data.Binary.encode sm))
+
 instance Binary StateMachine where
     put (StateMachine k) = mapM_ (put . k) [minBound..maxBound]
 
@@ -181,7 +191,7 @@ foreign import ccall "run" c_run
 runSerial :: StateMachine -> ByteString -> Transition
 runSerial matrix bytes =
     Foreign.Marshal.Unsafe.unsafeLocalState (
-        withStateMachineC matrix (\ptrTBytes->
+        withStateMachine matrix (\ptrTBytes->
             Data.ByteString.Unsafe.unsafeUseAsCStringLen bytes (\(ptrIn, len) ->
                 Foreign.allocaBytes numberOfStates (\ptrOut -> do
                     c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
@@ -191,11 +201,15 @@ packTransition :: Ptr CChar -> IO Transition
 packTransition ptrOut =
     fmap (Data.Binary.decode . Data.ByteString.Lazy.fromStrict) (Data.ByteString.packCStringLen (ptrOut, numberOfStates))
 
-withStateMachineC :: StateMachine -> (Ptr CChar -> IO a) -> IO a
-withStateMachineC matrix f =
+withStateMachine :: StateMachine -> (Ptr CChar -> IO a) -> IO a
+withStateMachine matrix f =
     Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) -> f ptrTBytes)
   where
     tBytes = Data.ByteString.Lazy.toStrict (Data.Binary.encode matrix)
+
+withStateMachineC :: StateMachineC -> (Ptr CChar -> IO a) -> IO a
+withStateMachineC (SMC _ tBytes) f =
+    Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) -> f ptrTBytes)
 
 -- | Split a `ByteString` into chunks of size @n@
 chunkBytes :: Int -> ByteString -> [ByteString]
@@ -263,13 +277,33 @@ runIO :: Int
 runIO numThreads matrix bytes
     | numThreads <= 1 = return $ runSerial matrix bytes
     | otherwise = fmap mconcat $
-      withStateMachineC matrix $ \ptrTBytes ->
+      withStateMachine matrix $ \ptrTBytes ->
           forConcurrently (chunkBytes subLen bytes) $ \chunk ->
               Data.ByteString.Unsafe.unsafeUseAsCStringLen chunk $ \(ptrIn, len) ->
                   Foreign.allocaBytes numberOfStates $ \ptrOut -> do
                       c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
                       packTransition ptrOut
   where
-    len = Data.ByteString.length bytes
+    bytesLen = Data.ByteString.length bytes
+    subLen = ((bytesLen - 1) `div` numThreads) + 1
 
-    subLen = ((len - 1) `div` numThreads) + 1
+runIOC :: Int
+      -- ^ Number of threads to use
+      -> StateMachineC
+      -- ^ State machine to run over the input bytes
+      -> ByteString
+      -- ^ Input bytes to feed to the state machine
+      -> IO Transition
+      -- ^ Computed function from every starting state to every final state
+runIOC numThreads smc@(SMC matrix _) bytes
+    | numThreads <= 1 = return $ runSerial matrix bytes
+    | otherwise = fmap mconcat $
+      withStateMachineC smc $ \ptrTBytes ->
+          forConcurrently (chunkBytes subLen bytes) $ \chunk ->
+              Data.ByteString.Unsafe.unsafeUseAsCStringLen chunk $ \(ptrIn, len) ->
+                  Foreign.allocaBytes numberOfStates $ \ptrOut -> do
+                      c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
+                      packTransition ptrOut
+  where
+    bytesLen = Data.ByteString.length bytes
+    subLen = ((bytesLen - 1) `div` numThreads) + 1

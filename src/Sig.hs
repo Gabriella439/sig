@@ -33,6 +33,7 @@ module Sig
 
       -- * Running state machines
     , run
+    , runIO
 
     ) where
 
@@ -43,6 +44,7 @@ import Data.Word (Word8)
 import Foreign (Ptr)
 import Foreign.C.Types (CChar(..), CSize(..))
 import GHC.Generics (Generic)
+import Control.Concurrent.Async (forConcurrently)
 
 import qualified Control.Parallel.Strategies
 import qualified Data.Binary
@@ -54,7 +56,7 @@ import qualified Foreign
 import qualified Foreign.Marshal.Unsafe
 
 -- $example
--- 
+--
 -- Here is an example of how you would define a `StateMachine` that parses
 -- C-style block comments using four states (which you can find in the
 -- "Sig.Examples" module):
@@ -65,9 +67,9 @@ import qualified Foreign.Marshal.Unsafe
 -- * `S03` - Just parsed a @\'*\'@ that might be the first character in @\"*/\"@
 --
 -- > import Sig (State(..), StateMachine)
--- > 
+-- >
 -- > import qualified Sig
--- > 
+-- >
 -- > cStyleComments :: StateMachine
 -- > cStyleComments = Sig.buildStateMachine f
 -- >   where
@@ -177,13 +179,21 @@ foreign import ccall "run" c_run
     prop> runSerial (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
 -}
 runSerial :: StateMachine -> ByteString -> Transition
-runSerial matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
-    Foreign.Marshal.Unsafe.unsafeLocalState (do
-        Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) ->
+runSerial matrix bytes =
+    Foreign.Marshal.Unsafe.unsafeLocalState (
+        withStateMachineC matrix (\ptrTBytes->
             Data.ByteString.Unsafe.unsafeUseAsCStringLen bytes (\(ptrIn, len) ->
                 Foreign.allocaBytes numberOfStates (\ptrOut -> do
                     c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
-                    Data.ByteString.packCStringLen (ptrOut, numberOfStates) ) ) ) ) ))
+                    packTransition ptrOut) ) ) )
+
+packTransition :: Ptr CChar -> IO Transition
+packTransition ptrOut =
+    fmap (Data.Binary.decode . Data.ByteString.Lazy.fromStrict) (Data.ByteString.packCStringLen (ptrOut, numberOfStates))
+
+withStateMachineC :: StateMachine -> (Ptr CChar -> IO a) -> IO a
+withStateMachineC matrix f =
+    Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) -> f ptrTBytes)
   where
     tBytes = Data.ByteString.Lazy.toStrict (Data.Binary.encode matrix)
 
@@ -237,6 +247,28 @@ run numThreads matrix bytes =
             Control.Parallel.Strategies.rseq
             (runSerial matrix)
             (chunkBytes subLen bytes) )
+  where
+    len = Data.ByteString.length bytes
+
+    subLen = ((len - 1) `div` numThreads) + 1
+
+runIO :: Int
+      -- ^ Number of threads to use
+      -> StateMachine
+      -- ^ State machine to run over the input bytes
+      -> ByteString
+      -- ^ Input bytes to feed to the state machine
+      -> IO Transition
+      -- ^ Computed function from every starting state to every final state
+runIO numThreads matrix bytes
+    | numThreads <= 1 = return $ runSerial matrix bytes
+    | otherwise = fmap mconcat $
+      withStateMachineC matrix $ \ptrTBytes ->
+          forConcurrently (chunkBytes subLen bytes) $ \chunk ->
+              Data.ByteString.Unsafe.unsafeUseAsCStringLen chunk $ \(ptrIn, len) ->
+                  Foreign.allocaBytes numberOfStates $ \ptrOut -> do
+                      c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
+                      packTransition ptrOut
   where
     len = Data.ByteString.length bytes
 

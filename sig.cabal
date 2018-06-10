@@ -17,6 +17,7 @@ library
                      , Sig.Examples
                      , Sig.Main
   build-depends:       base >=4.9 && < 5
+                     , async
                      , binary
                      , bytestring
                      , parallel

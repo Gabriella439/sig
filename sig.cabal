@@ -36,3 +36,4 @@ executable sig-benchmark
   build-depends:       base, sig
   ghc-options:         -threaded -with-rtsopts=-N -Wall
   cc-options:          -mssse3 -O3
+  default-language:    Haskell2010

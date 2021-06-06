@@ -6,7 +6,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeOperators      #-}
 
-module Sig.Main where
+module Main where
 
 import Filesystem.Path (FilePath)
 import Options.Generic (Generic, ParseRecord, Wrapped, type (<?>), (:::))
@@ -29,11 +29,17 @@ instance ParseRecord (Options Wrapped)
 main :: IO ()
 main = do
     let description = "Benchmark Sig performance on a sample file"
-    Options {..} <- Options.Generic.unwrapRecord description
-    numThreads   <- Control.Concurrent.getNumCapabilities
+
+    Options{..} <- Options.Generic.unwrapRecord description
+
+    numThreads <- Control.Concurrent.getNumCapabilities
+
     let pathString = Filesystem.Path.CurrentOS.encodeString path
+
     bytes <- System.IO.MMap.mmapFileByteString pathString Nothing
+
     -- The choice of `StateMachine` does not matter.  This library takes the
     -- same time to match an input regardless of the state machine specification
     let transition = Sig.run numThreads Sig.Examples.haskellModule bytes
+
     print (runTransition transition S00 == S12)

@@ -140,10 +140,11 @@ numberOfStates = fromEnum (maxBound :: State) + 1
 -- | A `Transition` is a function from a `State` to another `State`
 newtype Transition = Transition { runTransition :: State -> State }
 
+instance Semigroup Transition where
+    Transition f <> Transition g = Transition (g . f)
+
 instance Monoid Transition where
     mempty = Transition id
-
-    mappend (Transition f) (Transition g) = Transition (g . f)
 
 instance Binary Transition where
     put (Transition f) = mapM_ (put . f) [minBound..maxBound]

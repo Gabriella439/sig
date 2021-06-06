@@ -19,7 +19,7 @@
 
     The main limitations of this library are that:
 
-    * the state machines are currently limited to 16 states
+    * the state machines are currently limited to 32 states
     * this package requires @gcc@ as the C compiler on an architecture that
       supports @-mssse3@
 -}
@@ -112,7 +112,7 @@ import qualified Foreign.Marshal.Unsafe
 -- >     let transition = Sig.run n Sig.Examples.cStyleComments bytes
 -- >     print (runTransition transition S00 == S00)
 
-{-| This library supports state machines with up to 16 states (and may support
+{-| This library supports state machines with up to 32 states (and may support
     more in the future)
 
     This type represents the set of possible states that the state machine can
@@ -135,6 +135,22 @@ data State
     | S13
     | S14
     | S15
+    | S16
+    | S17
+    | S18
+    | S19
+    | S20
+    | S21
+    | S22
+    | S23
+    | S24
+    | S25
+    | S26
+    | S27
+    | S28
+    | S29
+    | S30
+    | S31
     deriving (Binary, Bounded, Enum, Eq, Generic, Ord, Show)
 
 numberOfStates :: Int

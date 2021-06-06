@@ -17,8 +17,11 @@
     This state machine implementation gives excellent performance which also
     scales linearly with the number of available cores
 
-    The main limitation of this library is that the state machines are currently
-    limited to 16 states
+    The main limitations of this library are that:
+
+    * the state machines are currently limited to 16 states
+    * this package requires @gcc@ as the C compiler on an architecture that
+      supports @-mssse3@
 -}
 
 module Sig

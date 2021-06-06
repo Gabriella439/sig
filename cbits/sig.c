@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef char v32si __attribute__ ((vector_size (32)));
+typedef char v32qi __attribute__ ((vector_size (32)));
 
 // This code is based off of the following paper:
 //
@@ -11,7 +11,7 @@ typedef char v32si __attribute__ ((vector_size (32)));
 //
 // Explanation of how this works:
 //
-// * The C `v32si` type is equivalent to the Haskell `Transition` type
+// * The C `v32qi` type is equivalent to the Haskell `Transition` type
 // * `__builtin_ia32_pshufb256` is equivalent to `mappend` for `Transition`
 // * The starting value of `s` is equivalent to `mempty` for `Transition`
 //
@@ -20,7 +20,7 @@ typedef char v32si __attribute__ ((vector_size (32)));
 // simplify the inner loop of this code to just this:
 //
 //     
-//     v32si s =
+//     v32qi s =
 //         {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15
 //         , 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
 //         };
@@ -48,12 +48,12 @@ typedef char v32si __attribute__ ((vector_size (32)));
 void run(char *in, size_t len, unsigned char *tBytes, char *out) {
     unsigned char a, b, c, d, e, f, g;
     int i, j;
-    v32si s =
+    v32qi s =
         {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15
         , 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
         };
-    v32si s0, s1, s2, s3, s4, s5;
-    v32si t[256];
+    v32qi s0, s1, s2, s3, s4, s5;
+    v32qi t[256];
 
     for (i = 0; i < 256; i++) {
         for (j = 0; j < 32; j++) {

@@ -21,7 +21,7 @@
 
     * the state machines are currently limited to 32 states
     * this package requires @gcc@ as the C compiler on an architecture that
-      supports @-mssse3@
+      supports AVX2 (i.e. @-mavx2@)
 -}
 
 module Sig

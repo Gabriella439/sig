@@ -36,3 +36,16 @@ executable sig-benchmark
                      , system-filepath
   ghc-options:         -threaded -with-rtsopts=-N -Wall
   default-language:    Haskell2010
+
+test-suite tasty
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      tasty
+  main-is:             Main.hs
+  build-depends:       base
+                     , sig
+                     , tasty
+                     , tasty-hunit
+                     , tasty-quickcheck
+  other-modules:       Driver
+  build-tool-depends:  tasty-discover:tasty-discover
+  default-language:    Haskell2010

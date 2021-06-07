@@ -124,11 +124,11 @@ import qualified Foreign.Marshal.Unsafe
     support more in the future)
 
     Rather than modeling the `State` as an enum with 64 alternatives we use an
-    `Int` for simplicity.  States greater than 64 are ignored
+    `Word8` for simplicity.  States greater than 64 are ignored
 -}
-type State = Int
+type State = Word8
 
-numberOfStates :: Int
+numberOfStates :: Word8
 numberOfStates = 64
 
 -- | A `Transition` is a function from a `State` to another `State`
@@ -141,10 +141,10 @@ instance Monoid Transition where
     mempty = Transition id
 
 instance Binary Transition where
-    put (Transition f) = mapM_ (put . f) [minBound..maxBound]
+    put (Transition f) = mapM_ (put . f) [0..(numberOfStates - 1)]
 
     get = do
-        !ss <- Data.Vector.replicateM numberOfStates get
+        !ss <- Data.Vector.replicateM (fromIntegral numberOfStates) get
         return (Transition (\s -> ss ! fromEnum s))
 
 -- | A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
@@ -176,9 +176,9 @@ runSerial matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
     Foreign.Marshal.Unsafe.unsafeLocalState (do
         Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) ->
             Data.ByteString.Unsafe.unsafeUseAsCStringLen bytes (\(ptrIn, len) ->
-                Foreign.allocaBytes numberOfStates (\ptrOut -> do
+                Foreign.allocaBytes (fromIntegral numberOfStates) (\ptrOut -> do
                     c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
-                    Data.ByteString.packCStringLen (ptrOut, numberOfStates) ) ) ) ) ))
+                    Data.ByteString.packCStringLen (ptrOut, (fromIntegral numberOfStates)) ) ) ) ) ))
   where
     tBytes = Data.ByteString.Lazy.toStrict (Data.Binary.encode matrix)
 

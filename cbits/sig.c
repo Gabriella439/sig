@@ -266,6 +266,7 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
 
         goto loop32x64;
     } else {
+        i = 0;
         goto loop64x64;
     }
 

@@ -34,7 +34,7 @@ cStyleComments = Sig.buildStateMachine f
 
     f  _ _ = 0
 
-{-| `StateMachine` that tests for the presence of an UTF8-encoded
+{-| `StateMachine` that tests for the presence of a UTF8-encoded
     @"Hello, world!"@
 
     The match succeeds if state @0@ transitions to state @13@

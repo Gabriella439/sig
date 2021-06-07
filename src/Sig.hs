@@ -40,6 +40,7 @@ module Sig
       -- * Building state machines
       buildStateMachine
     , State
+    , maxStates
     , Transition(..)
     , StateMachine(..)
 
@@ -56,11 +57,11 @@ import Foreign (Ptr)
 import Foreign.C.Types (CChar(..), CSize(..))
 
 import qualified Control.Parallel.Strategies
-import qualified Data.Binary
-import qualified Data.ByteString
-import qualified Data.ByteString.Lazy
-import qualified Data.ByteString.Unsafe
-import qualified Data.Vector
+import qualified Data.Binary                 as Binary
+import qualified Data.ByteString             as ByteString
+import qualified Data.ByteString.Lazy        as ByteString.Lazy
+import qualified Data.ByteString.Unsafe      as ByteString.Unsafe
+import qualified Data.Vector                 as Vector
 import qualified Foreign
 import qualified Foreign.Marshal.Unsafe
 
@@ -128,8 +129,9 @@ import qualified Foreign.Marshal.Unsafe
 -}
 type State = Word8
 
-numberOfStates :: Word8
-numberOfStates = 64
+-- | The maximum number of states this package supports
+maxStates :: Word8
+maxStates = 64
 
 -- | A `Transition` is a function from a `State` to another `State`
 newtype Transition = Transition { runTransition :: State -> State }
@@ -141,11 +143,18 @@ instance Monoid Transition where
     mempty = Transition id
 
 instance Binary Transition where
-    put (Transition f) = mapM_ (put . f) [0..(numberOfStates - 1)]
+    put (Transition f) = mapM_ (put . f) [0..(maxStates - 1)]
 
     get = do
-        !ss <- Data.Vector.replicateM (fromIntegral numberOfStates) get
+        !ss <- Vector.replicateM (fromIntegral maxStates) get
         return (Transition (\s -> ss ! fromEnum s))
+
+instance Eq Transition where
+    a == b = Binary.encode a == Binary.encode b
+
+instance Show Transition where
+    showsPrec _ transition =
+        ("(Data.Binary.decode (Data.ByteString.Lazy.pack " <>) . showsPrec 9 (ByteString.Lazy.unpack (Binary.encode transition)) . (") :: Sig.Transition)" <>)
 
 -- | A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
 newtype StateMachine = StateMachine { runStateMachine :: Word8 -> Transition }
@@ -155,8 +164,15 @@ instance Binary StateMachine where
 
     get = do
         let numBytes = fromEnum (maxBound :: Word8) + 1
-        ts <- Data.Vector.replicateM numBytes get
+        ts <- Vector.replicateM numBytes get
         return (StateMachine (\word8 -> ts ! fromEnum word8))
+
+instance Eq StateMachine where
+    a == b = Binary.encode a == Binary.encode b
+
+instance Show StateMachine where
+    showsPrec _ stateMachine =
+        ("(Data.Binary.decode (Data.ByteString.Lazy.pack " <>) . showsPrec 9 (ByteString.Lazy.unpack (Binary.encode stateMachine)) . (") :: Sig.Transition)" <>)
 
 {-| Convenient utility to build a `StateMachine` from a function of two
     arguments
@@ -169,27 +185,27 @@ foreign import ccall "run" c_run
 
 {-| Wrap the @c_run@ function in a Haskell API
 
-    prop> runSerial (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
+    prop> run 1 stateMachine bytes === foldMap (runStateMachine stateMachine) (ByteString.unpack bytes)
 -}
 runSerial :: StateMachine -> ByteString -> Transition
-runSerial matrix bytes = Data.Binary.decode (Data.ByteString.Lazy.fromStrict (
+runSerial matrix bytes = Binary.decode (ByteString.Lazy.fromStrict (
     Foreign.Marshal.Unsafe.unsafeLocalState (do
-        Data.ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) ->
-            Data.ByteString.Unsafe.unsafeUseAsCStringLen bytes (\(ptrIn, len) ->
-                Foreign.allocaBytes (fromIntegral numberOfStates) (\ptrOut -> do
+        ByteString.Unsafe.unsafeUseAsCStringLen tBytes (\(ptrTBytes, _) ->
+            ByteString.Unsafe.unsafeUseAsCStringLen bytes (\(ptrIn, len) ->
+                Foreign.allocaBytes (fromIntegral maxStates) (\ptrOut -> do
                     c_run ptrIn (fromIntegral len) ptrTBytes ptrOut
-                    Data.ByteString.packCStringLen (ptrOut, (fromIntegral numberOfStates)) ) ) ) ) ))
+                    ByteString.packCStringLen (ptrOut, (fromIntegral maxStates)) ) ) ) ) ))
   where
-    tBytes = Data.ByteString.Lazy.toStrict (Data.Binary.encode matrix)
+    tBytes = ByteString.Lazy.toStrict (Binary.encode matrix)
 
 -- | Split a `ByteString` into chunks of size @n@
 chunkBytes :: Int -> ByteString -> [ByteString]
 chunkBytes n bytes =
-    if Data.ByteString.null bytes
+    if ByteString.null bytes
     then []
     else prefix : chunkBytes n suffix
   where
-    ~(prefix, suffix) = Data.ByteString.splitAt n bytes
+    ~(prefix, suffix) = ByteString.splitAt n bytes
 
 {-| Run a `StateMachine` on a `ByteString`
 
@@ -198,7 +214,7 @@ chunkBytes n bytes =
 
     The implementation is equivalent to:
 
-    prop> run n (StateMachine f) bytes == foldMap f (Data.ByteString.unpack bytes)
+    prop> run n (StateMachine f) bytes == foldMap f (ByteString.unpack bytes)
 
     ... except much more efficient and parallel
 
@@ -233,6 +249,6 @@ run numThreads matrix bytes =
             (runSerial matrix)
             (chunkBytes subLen bytes) )
   where
-    len = Data.ByteString.length bytes
+    len = ByteString.length bytes
 
     subLen = ((len - 1) `div` numThreads) + 1

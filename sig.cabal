@@ -42,10 +42,13 @@ test-suite tasty
   hs-source-dirs:      tasty
   main-is:             Main.hs
   build-depends:       base
+                     , binary
+                     , bytestring
                      , sig
                      , tasty
                      , tasty-hunit
                      , tasty-quickcheck
   other-modules:       Driver
   build-tool-depends:  tasty-discover:tasty-discover
+  ghc-options:         -Wall
   default-language:    Haskell2010

@@ -1,6 +1,4 @@
 {-# LANGUAGE BangPatterns   #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
 
 {-| This library provides a very efficient implementation of parallel state
     machines running over `ByteString` inputs based on the following paper:
@@ -41,7 +39,7 @@ module Sig
 
       -- * Building state machines
       buildStateMachine
-    , State(..)
+    , State
     , Transition(..)
     , StateMachine(..)
 
@@ -56,7 +54,6 @@ import Data.Vector ((!))
 import Data.Word (Word8)
 import Foreign (Ptr)
 import Foreign.C.Types (CChar(..), CSize(..))
-import GHC.Generics (Generic)
 
 import qualified Control.Parallel.Strategies
 import qualified Data.Binary
@@ -73,10 +70,10 @@ import qualified Foreign.Marshal.Unsafe
 -- C-style block comments using four states (which you can find in the
 -- "Sig.Examples" module):
 --
--- * `S00` - Starting state and final state for a well-formed comment
--- * `S01` - Just parsed a @\'/\'@ that might be the first character in @\"/*\"@
--- * `S02` - In the middle of a block comment
--- * `S03` - Just parsed a @\'*\'@ that might be the first character in @\"*/\"@
+-- * @0@ - Starting state and final state for a well-formed comment
+-- * @1@ - Just parsed a @\'/\'@ that might be the first character in @\"/*\"@
+-- * @2@ - In the middle of a block comment
+-- * @3@ - Just parsed a @\'*\'@ that might be the first character in @\"*/\"@
 --
 -- > import Sig (State(..), StateMachine)
 -- > 
@@ -88,22 +85,22 @@ import qualified Foreign.Marshal.Unsafe
 -- >     -- 47 is the ASCII encoding for '/'
 -- >     -- 42 is the ASCII encoding for '*'
 -- >
--- >     f 47 S00 = S01  -- Possible  comment start: Go to state #1
--- >     f 42 S01 = S02  -- Confirmed comment start: Go to state #2
--- >     f 42 S02 = S03  -- Possible  comment end  : Go to state #3
--- >     f 47 S03 = S00  -- Confirmed comment end  : Go to state #0
+-- >     f 47 0 = 1  -- Possible  comment start: Go to state #1
+-- >     f 42 1 = 2  -- Confirmed comment start: Go to state #2
+-- >     f 42 2 = 3  -- Possible  comment end  : Go to state #3
+-- >     f 47 3 = 0  -- Confirmed comment end  : Go to state #0
 -- >
--- >     f 47 S01 = S01  -- Still might be a comment start: Stay on   state #1
--- >     f  _ S01 = S00  -- Not a comment after all       : Return to state #0
+-- >     f 47 1 = 1  -- Still might be a comment start: Stay on   state #1
+-- >     f  _ 1 = 0  -- Not a comment after all       : Return to state #0
 -- >
--- >     f 42 S03 = S03  -- Still might be a comment end  : Stay on   state #3
--- >     f  _ S03 = S02  -- Not a comment after all       : Return to state #2
+-- >     f 42 3 = 3  -- Still might be a comment end  : Stay on   state #3
+-- >     f  _ 3 = 2  -- Not a comment after all       : Return to state #2
 -- >
--- >     f  _ S00 = S00  -- Outside of a comment: Stay on state #0
+-- >     f  _ 0 = 0  -- Outside of a comment: Stay on state #0
 -- >
--- >     f  _ S02 = S02  -- Inside a comment    : Stay on state #2
+-- >     f  _ 2 = 2  -- Inside a comment    : Stay on state #2
 -- >
--- >     f  _ _   = S00
+-- >     f  _ _ = 0
 --
 -- ... and here is an example of using the above `StateMachine` on a file:
 --
@@ -121,83 +118,18 @@ import qualified Foreign.Marshal.Unsafe
 -- >     n     <- Control.Concurrent.getNumCapabilities
 -- >     bytes <- System.IO.MMap.mmapFileByteString "example.c" Nothing
 -- >     let transition = Sig.run n Sig.Examples.cStyleComments bytes
--- >     print (runTransition transition S00 == S00)
+-- >     print (runTransition transition 0 == 0)
 
-{-| This library supports state machines with up to 64 states (and may support
-    more in the future)
+{-| This library supports only state machines with up to 64 states (and may
+    support more in the future)
 
-    This type represents the set of possible states that the state machine can
-    be in
+    Rather than modeling the `State` as an enum with 64 alternatives we use an
+    `Int` for simplicity.  States greater than 64 are ignored
 -}
-data State
-    = S00
-    | S01
-    | S02
-    | S03
-    | S04
-    | S05
-    | S06
-    | S07
-    | S08
-    | S09
-    | S10
-    | S11
-    | S12
-    | S13
-    | S14
-    | S15
-    | S16
-    | S17
-    | S18
-    | S19
-    | S20
-    | S21
-    | S22
-    | S23
-    | S24
-    | S25
-    | S26
-    | S27
-    | S28
-    | S29
-    | S30
-    | S31
-    | S32
-    | S33
-    | S34
-    | S35
-    | S36
-    | S37
-    | S38
-    | S39
-    | S40
-    | S41
-    | S42
-    | S43
-    | S44
-    | S45
-    | S46
-    | S47
-    | S48
-    | S49
-    | S50
-    | S51
-    | S52
-    | S53
-    | S54
-    | S55
-    | S56
-    | S57
-    | S58
-    | S59
-    | S60
-    | S61
-    | S62
-    | S63
-    deriving (Binary, Bounded, Enum, Eq, Generic, Ord, Show)
+type State = Int
 
 numberOfStates :: Int
-numberOfStates = fromEnum (maxBound :: State) + 1
+numberOfStates = 64
 
 -- | A `Transition` is a function from a `State` to another `State`
 newtype Transition = Transition { runTransition :: State -> State }

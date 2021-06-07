@@ -11,7 +11,7 @@ module Main where
 import Filesystem.Path (FilePath)
 import Options.Generic (Generic, ParseRecord, Wrapped, type (<?>), (:::))
 import Prelude hiding (FilePath)
-import Sig (State(..), Transition(..))
+import Sig (Transition(..))
 
 import qualified Control.Concurrent
 import qualified Filesystem.Path.CurrentOS
@@ -45,4 +45,4 @@ main = do
     -- same time to match an input regardless of the state machine specification
     let transition = Sig.run numThreads Sig.Examples.haskellModule bytes
 
-    print (runTransition transition S00 == S12)
+    print (runTransition transition 0 == 12)

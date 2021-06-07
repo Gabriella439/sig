@@ -3,13 +3,13 @@
 -}
 module Sig.Examples where
 
-import Sig (State(..), StateMachine)
+import Sig (StateMachine)
 
 import qualified Sig
 
 {-| `StateMachine` for matching well-formed C-style comments
 
-    The match succeeds if the state `S00` transitions to state `S00`
+    The match succeeds if the state @0@ transitions to state @0@
 -}
 cStyleComments :: StateMachine
 cStyleComments = Sig.buildStateMachine f
@@ -17,121 +17,121 @@ cStyleComments = Sig.buildStateMachine f
     -- 47 is the ASCII encoding for '/'
     -- 42 is the ASCII encoding for '*'
 
-    f 47 S00 = S01  -- Possible  comment start: Go to state #1
-    f 42 S01 = S02  -- Confirmed comment start: Go to state #2
-    f 42 S02 = S03  -- Possible  comment end  : Go to state #3
-    f 47 S03 = S00  -- Confirmed comment end  : Go to state #0
+    f 47 0 = 1  -- Possible  comment start: Go to state #1
+    f 42 1 = 2  -- Confirmed comment start: Go to state #2
+    f 42 2 = 3  -- Possible  comment end  : Go to state #3
+    f 47 3 = 0  -- Confirmed comment end  : Go to state #0
 
-    f 47 S01 = S01  -- Still might be a comment start: Stay on   state #1
-    f  _ S01 = S00  -- Not a comment after all       : Return to state #0
+    f 47 1 = 1  -- Still might be a comment start: Stay on   state #1
+    f  _ 1 = 0  -- Not a comment after all       : Return to state #0
 
-    f 42 S03 = S03  -- Still might be a comment end  : Stay on   state #3
-    f  _ S03 = S02  -- Not a comment after all       : Return to state #2
+    f 42 3 = 3  -- Still might be a comment end  : Stay on   state #3
+    f  _ 3 = 2  -- Not a comment after all       : Return to state #2
 
-    f  _ S00 = S00  -- Outside of a comment: Stay on state #0
+    f  _ 0 = 0  -- Outside of a comment: Stay on state #0
 
-    f  _ S02 = S02  -- Inside a comment    : Stay on state #2
+    f  _ 2 = 2  -- Inside a comment    : Stay on state #2
 
-    f  _ _   = S00
+    f  _ _ = 0
 
 {-| `StateMachine` that tests for the presence of an UTF8-encoded
     @"Hello, world!"@
 
-    The match succeeds if state `S00` transitions to state `S13`
+    The match succeeds if state @0@ transitions to state @13@
 -}
 helloWorld :: StateMachine
 helloWorld = Sig.buildStateMachine f
   where
     -- Acceptor state
-    f  _  S13 = S13
+    f  _  13 = 13
 
     -- 'H'
-    f  72 S00 = S01
+    f  72  0 =  1
 
     -- 'e'
-    f 101 S01 = S02
+    f 101  1 =  2
 
     -- 'l'
-    f 108 S02 = S03
+    f 108  2 =  3
 
     -- 'l'
-    f 108 S03 = S04
+    f 108  3 =  4
 
     -- 'o'
-    f 111 S04 = S05
+    f 111  4 =  5
 
     -- ','
-    f  44 S05 = S06
+    f  44  5 =  6
 
     -- ' '
-    f  32 S06 = S07
+    f  32  6 =  7
 
     -- 'w'
-    f 119 S07 = S08
+    f 119  7 =  8
 
     -- 'o'
-    f 111 S08 = S09
+    f 111  8 =  9
 
     -- 'r'
-    f 114 S09 = S10
+    f 114  9 = 10
 
     -- 'l'
-    f 108 S10 = S11
+    f 108 10 = 11
 
     -- 'd'
-    f 100 S11 = S12
+    f 100 11 = 12
 
     -- '!'
-    f  33 S12 = S13
+    f  33 12 = 13
 
-    f  _  _   = S00
+    f   _  _ =  0
 
 {-| `StateMachine` that searches for UTF8-encoded @module .*where@ to guess if a
     file is a Haskell module
 
-    The match succeeds if state `S00` transitions to state `S12`
+    The match succeeds if state @0@ transitions to state @12@
 -}
 haskellModule :: StateMachine
 haskellModule = Sig.buildStateMachine f
   where
     -- Acceptor state
-    f _   S12 = S12
+    f _   12 = 12
 
     -- 'm'
-    f 109 _   = S01
+    f 109  _ =  1
 
     -- 'o'
-    f 111 S01 = S02
+    f 111  1 =  2
 
     -- 'd'
-    f 100 S02 = S03
+    f 100  2 =  3
 
     -- 'u'
-    f 117 S03 = S04
+    f 117  3 =  4
 
     -- 'l'
-    f 108 S04 = S05
+    f 108  4 =  5
 
     -- 'e'
-    f 101 S05 = S06
+    f 101  5 =  6
 
     -- ' '
-    f  32 S06 = S07
+    f  32  6 =  7
 
     -- '.*w'
-    f 119 S07 = S08
-    f _   S07 = S07
+    f 119  7 =  8
+    f _    7 =  7
 
     -- 'h'
-    f 104 S08 = S09
+    f 104  8 =  9
 
     -- 'e'
-    f 101 S09 = S10
+    f 101  9 = 10
 
     -- 'r'
-    f 114 S10 = S11
+    f 114 10 = 11
 
     -- 'e'
-    f 101 S11 = S12
+    f 101 11 = 12
 
-    f _   _   = S00
+    f _    _ =  0

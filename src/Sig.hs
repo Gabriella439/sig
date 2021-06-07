@@ -20,8 +20,19 @@
     The main limitations of this library are that:
 
     * the state machines are currently limited to 64 states
-    * this package requires @gcc@ as the C compiler on an architecture that
-      @-mssse3@, @-msse4.2@, and @-mavx2@
+
+      The original paper describes supporting 256 states, but this package only
+      goes up to 64 states in order to support all of the optimizations from the
+      paper while keeping the C code manageable.
+
+    * this package has to be built using @gcc@ as the C compiler and can only
+      be run on architectures that supports @-mssse3@, @-msse4.2@, and @-mavx2@.
+
+      Most processors built since 2012 support these SIMD extensions. See:
+
+      * <https://en.wikipedia.org/wiki/SSSE3#CPUs_with_SSSE3 CPUS that support SSSE3>
+      * <https://en.wikipedia.org/wiki/SSE4#Supporting_CPUs CPUS that support SSE4>
+      * <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#CPUs_with_AVX CPUS that support AVX>
 -}
 
 module Sig

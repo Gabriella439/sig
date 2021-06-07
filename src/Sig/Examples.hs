@@ -1,3 +1,6 @@
+{-| This module provides some sample hand-rolle state machines that you can
+    use for testing purposes
+-}
 module Sig.Examples where
 
 import Sig (State(..), StateMachine)

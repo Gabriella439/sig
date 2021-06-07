@@ -19,9 +19,9 @@
 
     The main limitations of this library are that:
 
-    * the state machines are currently limited to 32 states
+    * the state machines are currently limited to 64 states
     * this package requires @gcc@ as the C compiler on an architecture that
-      supports AVX2 (i.e. @-mavx2@)
+      @-mssse3@, @-msse4.2@, and @-mavx2@
 -}
 
 module Sig
@@ -112,7 +112,7 @@ import qualified Foreign.Marshal.Unsafe
 -- >     let transition = Sig.run n Sig.Examples.cStyleComments bytes
 -- >     print (runTransition transition S00 == S00)
 
-{-| This library supports state machines with up to 32 states (and may support
+{-| This library supports state machines with up to 64 states (and may support
     more in the future)
 
     This type represents the set of possible states that the state machine can
@@ -151,6 +151,38 @@ data State
     | S29
     | S30
     | S31
+    | S32
+    | S33
+    | S34
+    | S35
+    | S36
+    | S37
+    | S38
+    | S39
+    | S40
+    | S41
+    | S42
+    | S43
+    | S44
+    | S45
+    | S46
+    | S47
+    | S48
+    | S49
+    | S50
+    | S51
+    | S52
+    | S53
+    | S54
+    | S55
+    | S56
+    | S57
+    | S58
+    | S59
+    | S60
+    | S61
+    | S62
+    | S63
     deriving (Binary, Bounded, Enum, Eq, Generic, Ord, Show)
 
 numberOfStates :: Int

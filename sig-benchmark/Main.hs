@@ -20,8 +20,9 @@ import qualified Sig
 import qualified Sig.Examples
 import qualified System.IO.MMap
 
-newtype Options w = Options
-    { path :: w ::: FilePath <?> "Path to file to test"
+data Options w = Options
+    { path    :: w ::: FilePath  <?> "Path to file to test"
+    , threads :: w ::: Maybe Int <?> "Number of cores to use"
     } deriving (Generic)
 
 instance ParseRecord (Options Wrapped)
@@ -32,7 +33,9 @@ main = do
 
     Options{..} <- Options.Generic.unwrapRecord description
 
-    numThreads <- Control.Concurrent.getNumCapabilities
+    numThreads <- case threads of
+        Nothing -> Control.Concurrent.getNumCapabilities
+        Just n  -> return n
 
     let pathString = Filesystem.Path.CurrentOS.encodeString path
 

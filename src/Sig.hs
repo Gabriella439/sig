@@ -38,7 +38,7 @@
       goes up to 64 states in order to keep the C code somewhat manageable.
 
     * This package has to be built using @gcc@ as the C compiler and can only
-      be run on architectures that supports @-mssse3@, @-msse4.2@, and @-mavx2@.
+      be run on architectures that support @-mssse3@, @-msse4.2@, and @-mavx2@.
 
       Most processors built since 2012 support these SIMD extensions. See:
 

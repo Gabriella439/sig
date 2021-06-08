@@ -1,3 +1,12 @@
+/*  This file implements most of the algorithm described by the following paper:
+
+    > Mytkowicz, Todd, Madanlal Musuvathi, and Wolfram Schulte. "Data-parallel
+    > finite-state machines." ACM SIGARCH Computer Architecture News. Vol. 42.
+    > No. 1. ACM, 2014.
+
+    The comments in this file will reference concepts from that paper.
+*/
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -16,63 +25,66 @@ typedef union {
     v32qi x32[2];
 } v64;
 
-static inline v16qi shuffle16x16(v16qi x, v16qi y) {
-    return __builtin_ia32_pshufb128(x, y);
+/* All of the following shuffle{m}x{n} functions implement the ⊗ₘₙ operator from
+   the paper for specific values of m and n.
+*/
+static inline v16qi shuffle16x16(v16qi m, v16qi n) {
+    return __builtin_ia32_pshufb128(n, m);
 }
 
-static inline v32qi shuffle16x32(v16qi x, v32qi y) {
-    v32 xx = { .x16 = { x, x } };
-    return __builtin_ia32_pshufb256(xx.x32, y);
+static inline v32qi shuffle32x16(v32qi m, v16qi n) {
+    v32 nn = { .x16 = { n, n } };
+    return __builtin_ia32_pshufb256(nn.x32, m);
 }
 
-static inline v64qi shuffle16x64(v16qi x, v64qi y) {
-    v64 y_ = { .x64 = y };
-    v32qi lo = shuffle16x32(x, y_.x32[0]);
-    v32qi hi = shuffle16x32(x, y_.x32[1]);
+static inline v64qi shuffle64x16(v64qi m, v16qi n) {
+    v64 m_ = { .x64 = m };
+    v32qi lo = shuffle32x16(m_.x32[0], n);
+    v32qi hi = shuffle32x16(m_.x32[1], n);
     v64 result = { .x32 = { lo, hi } };
     return result.x64;
 }
 
-static inline v16qi shuffle32x16(v32qi x, v16qi y) {
-    v32 x_ = { .x32 = x };
-    v16qi lo0 = shuffle16x16(x_.x16[0], y     );
-    v16qi lo1 = shuffle16x16(x_.x16[1], y % 16);
-    return __builtin_ia32_pblendvb128(lo1, lo0, y < 16);
+static inline v16qi shuffle16x32(v16qi m, v32qi n) {
+    v32 n_ = { .x32 = n };
+    v16qi lo0 = shuffle16x16(m     , n_.x16[0]);
+    v16qi lo1 = shuffle16x16(m % 16, n_.x16[1]);
+    return __builtin_ia32_pblendvb128(lo1, lo0, m < 16);
 }
 
-static inline v32qi shuffle32x32(v32qi x, v32qi y) {
-    v32 x_ = { .x32 = x };
-    v32qi lo0 = shuffle16x32(x_.x16[0], y     );
-    v32qi lo1 = shuffle16x32(x_.x16[1], y % 16);
-    return __builtin_ia32_pblendvb256(lo1, lo0, y < 16);
+static inline v32qi shuffle32x32(v32qi m, v32qi n) {
+    v32 n_ = { .x32 = n };
+    v32qi lo0 = shuffle32x16(m     , n_.x16[0]);
+    v32qi lo1 = shuffle32x16(m % 16, n_.x16[1]);
+    return __builtin_ia32_pblendvb256(lo1, lo0, m < 16);
 }
 
-static inline v64qi shuffle32x64(v32qi x, v64qi y) {
-    v64 y_ = { .x64 = y };
-    v32qi lo = shuffle32x32(x, y_.x32[0]);
-    v32qi hi = shuffle32x32(x, y_.x32[1]);
+static inline v64qi shuffle64x32(v64qi m, v32qi n) {
+    v64 m_ = { .x64 = m };
+    v32qi lo = shuffle32x32(m_.x32[0], n);
+    v32qi hi = shuffle32x32(m_.x32[1], n);
     v64 result = { .x32 = { lo, hi } };
     return result.x64;
 }
 
-static inline v16qi shuffle64x16(v64qi x, v16qi y) {
-    v64 x_ = { .x64 = x };
-    v16qi lo0 = shuffle32x16(x_.x32[0], y     );
-    v16qi lo1 = shuffle32x16(x_.x32[1], y % 32);
-    return __builtin_ia32_pblendvb128(lo1, lo0, y < 32);
+static inline v16qi shuffle16x64(v16qi m, v64qi n) {
+    v64 n_ = { .x64 = n };
+    v16qi lo0 = shuffle16x32(m     , n_.x32[0]);
+    v16qi lo1 = shuffle16x32(m % 32, n_.x32[1]);
+    return __builtin_ia32_pblendvb128(lo1, lo0, m < 32);
 }
 
-static inline v32qi shuffle64x32(v64qi x, v32qi y) {
-    v64 x_ = { .x64 = x };
-    v32qi lo0 = shuffle32x32(x_.x32[0], y     );
-    v32qi lo1 = shuffle32x32(x_.x32[1], y % 32);
-    return __builtin_ia32_pblendvb256(lo1, lo0, y < 32);
+static inline v32qi shuffle32x64(v32qi m, v64qi n) {
+    v64 n_ = { .x64 = n };
+    v32qi lo0 = shuffle32x32(m     , n_.x32[0]);
+    v32qi lo1 = shuffle32x32(m % 32, n_.x32[1]);
+    return __builtin_ia32_pblendvb256(lo1, lo0, m < 32);
 }
 
-static inline v64qi shuffle64x64(v64qi x, v64qi y) {
-    v64 y_ = { .x64 = y };
-    v32qi lo = shuffle64x32(x, y_.x32[0]);
-    v32qi hi = shuffle64x32(x, y_.x32[1]);
+static inline v64qi shuffle64x64(v64qi m, v64qi n) {
+    v64 m_ = { .x64 = m };
+    v32qi lo = shuffle32x64(m_.x32[0], n);
+    v32qi hi = shuffle32x64(m_.x32[1], n);
     v64 result = { .x32 = { lo, hi } };
     return result.x64;
 }
@@ -244,7 +256,7 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
 
         for (i = 0; i < 256; i++) {
             for (j = 0; j < 256; j++) {
-                t16[i][j] = shuffle64x16(t_factors16x64[j].left, t_factors16x64[i].unique);
+                t16[i][j] = shuffle16x64(t_factors16x64[i].unique, t_factors16x64[j].left);
             }
         }
 
@@ -262,7 +274,7 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
 
         for (i = 0; i < 256; i++) {
             for (j = 0; j < 256; j++) {
-                t32[i][j] = shuffle64x32(t_factors32x64[j].left, t_factors32x64[i].unique);
+                t32[i][j] = shuffle32x64(t_factors32x64[i].unique, t_factors32x64[j].left);
             }
         }
 
@@ -285,21 +297,21 @@ loop64x64:
             if (uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
-              l64 = shuffle64x64(factors16x64.left, l64);
+              l64 = shuffle64x64(l64, factors16x64.left);
               goto loop64x16;
             } else if (uniques <= 32) {
               factors32x64 = factor32x64(s64);
               s32 = factors32x64.unique;
-              l64 = shuffle64x64(factors32x64.left, l64);
+              l64 = shuffle64x64(l64, factors32x64.left);
               goto loop64x32;
             }
         }
 
         a = in[i];
-        s64 = shuffle64x64(t[a], s64);
+        s64 = shuffle64x64(s64, t[a]);
     }
 
-    s64 = shuffle64x64(s64, l64);
+    s64 = shuffle64x64(l64, s64);
 
     goto done;
 
@@ -310,26 +322,26 @@ loop64x32:
             if (uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
-              l64 = shuffle32x64(factors16x32.left, l64);
+              l64 = shuffle64x32(l64, factors16x32.left);
               goto loop64x16;
             }
         }
 
         a = in[i];
-        s32 = shuffle64x32(t[a], s32);
+        s32 = shuffle32x64(s32, t[a]);
     }
 
-    s64 = shuffle32x64(s32, l64);
+    s64 = shuffle64x32(l64, s32);
 
     goto done;
 
 loop64x16:
     for (; i < len; i++) {
         a = in[i];
-        s16 = shuffle64x16(t[a], s16);
+        s16 = shuffle16x64(s16, t[a]);
     }
 
-    s64 = shuffle16x64(s16, l64);
+    s64 = shuffle64x16(l64, s16);
 
     goto done;
 
@@ -340,24 +352,24 @@ loop32x64:
             if (uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
-              l64 = shuffle64x64(factors16x64.left, l64);
+              l64 = shuffle64x64(l64, factors16x64.left);
               goto loop32x16;
             } else if (uniques <= 32) {
               factors32x64 = factor32x64(s64);
               s32 = factors32x64.unique;
-              l64 = shuffle64x64(factors32x64.left, l64);
+              l64 = shuffle64x64(l64, factors32x64.left);
               goto loop32x32;
             }
         }
 
         a = in[i];
-        s64 = shuffle32x64(t32_current[a], s64);
+        s64 = shuffle64x32(s64, t32_current[a]);
         t32_current = t32[a];
     }
 
     a = in[i - 1];
-    s64 = shuffle32x64(t_factors32x64[a].unique, s64);
-    s64 = shuffle64x64(s64, l64);
+    s64 = shuffle64x32(s64, t_factors32x64[a].unique);
+    s64 = shuffle64x64(l64, s64);
 
     goto done;
 
@@ -368,32 +380,32 @@ loop32x32:
             if (uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
-              l64 = shuffle32x64(factors16x32.left, l64);
+              l64 = shuffle64x32(l64, factors16x32.left);
               goto loop32x16;
             }
         }
 
         a = in[i];
-        s32 = shuffle32x32(t32_current[a], s32);
+        s32 = shuffle32x32(s32, t32_current[a]);
         t32_current = t32[a];
     }
 
     a = in[i - 1];
-    s32 = shuffle32x32(t_factors32x64[a].unique, s32);
-    s64 = shuffle32x64(s32, l64);
+    s32 = shuffle32x32(s32, t_factors32x64[a].unique);
+    s64 = shuffle64x32(l64, s32);
 
     goto done;
 
 loop32x16:
     for (; i < len; i++) {
         a = in[i];
-        s16 = shuffle32x16(t32_current[a], s16);
+        s16 = shuffle16x32(s16, t32_current[a]);
         t32_current = t32[a];
     }
 
     a = in[i - 1];
-    s16 = shuffle32x16(t_factors32x64[a].unique, s16);
-    s64 = shuffle16x64(s16, l64);
+    s16 = shuffle16x32(s16, t_factors32x64[a].unique);
+    s64 = shuffle64x16(l64, s16);
 
     goto done;
 
@@ -404,24 +416,24 @@ loop16x64:
             if (uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
-              l64 = shuffle64x64(factors16x64.left, l64);
+              l64 = shuffle64x64(l64, factors16x64.left);
               goto loop16x16;
             } else if (uniques <= 32) {
               factors32x64 = factor32x64(s64);
               s32 = factors32x64.unique;
-              l64 = shuffle64x64(factors32x64.left, l64);
+              l64 = shuffle64x64(l64, factors32x64.left);
               goto loop16x32;
             }
         }
 
         a = in[i];
-        s64 = shuffle16x64(t16_current[a], s64);
+        s64 = shuffle64x16(s64, t16_current[a]);
         t16_current = t16[a];
     }
 
     a = in[i - 1];
-    s64 = shuffle16x64(t_factors16x64[a].unique, s64);
-    s64 = shuffle64x64(s64, l64);
+    s64 = shuffle64x16(s64, t_factors16x64[a].unique);
+    s64 = shuffle64x64(l64, s64);
 
     goto done;
 
@@ -432,19 +444,19 @@ loop16x32:
             if (uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
-              l64 = shuffle32x64(factors16x32.left, l64);
+              l64 = shuffle64x32(l64, factors16x32.left);
               goto loop16x16;
             }
         }
 
         a = in[i];
-        s32 = shuffle16x32(t16_current[a], s32);
+        s32 = shuffle32x16(s32, t16_current[a]);
         t16_current = t16[a];
     }
 
     a = in[i - 1];
-    s32 = shuffle16x32(t_factors16x64[a].unique, s32);
-    s64 = shuffle32x64(s32, l64);
+    s32 = shuffle32x16(s32, t_factors16x64[a].unique);
+    s64 = shuffle64x32(l64, s32);
 
     goto done;
 
@@ -458,28 +470,28 @@ loop16x16:
         f = in[i + 5];
         g = in[i + 6];
 
-        s16_0 = shuffle16x16(t16_current[a], s16);
-        s16_1 = shuffle16x16(t16[b][c], t16[a][b]);
-        s16_2 = shuffle16x16(t16[d][e], t16[c][d]);
-        s16_3 = shuffle16x16(t16[f][g], t16[e][f]);
+        s16_0 = shuffle16x16(s16, t16_current[a]);
+        s16_1 = shuffle16x16(t16[a][b], t16[b][c]);
+        s16_2 = shuffle16x16(t16[c][d], t16[d][e]);
+        s16_3 = shuffle16x16(t16[e][f], t16[f][g]);
 
-        s16_4 = shuffle16x16(s16_1, s16_0);
-        s16_5 = shuffle16x16(s16_3, s16_2);
+        s16_4 = shuffle16x16(s16_0, s16_1);
+        s16_5 = shuffle16x16(s16_2, s16_3);
 
-        s16 = shuffle16x16(s16_5, s16_4);
+        s16 = shuffle16x16(s16_4, s16_5);
 
         t16_current = t16[g];
     }
 
     for (; i < len; i++) {
         a = in[i];
-        s16 = shuffle16x16(t16_current[a], s16);
+        s16 = shuffle16x16(s16, t16_current[a]);
         t16_current = t16[a];
     }
 
     a = in[i - 1];
-    s16 = shuffle16x16(t_factors16x64[a].unique, s16);
-    s64 = shuffle16x64(s16, l64);
+    s16 = shuffle16x16(s16, t_factors16x64[a].unique);
+    s64 = shuffle64x16(l64, s16);
 
     goto done;
 

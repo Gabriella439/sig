@@ -84,6 +84,10 @@ prop_roundtrip stateMachine =
         Binary.encode @StateMachine (Binary.decode (Binary.encode @StateMachine stateMachine))
     === Binary.encode @StateMachine stateMachine
 
-prop_foldMap stateMachine bytes =
+prop_foldMap_serial stateMachine bytes =
         Sig.run 1 stateMachine bytes
+    === foldMap (Sig.runStateMachine stateMachine) (ByteString.unpack bytes)
+
+prop_foldMap_parallel stateMachine bytes =
+        Sig.run 4 stateMachine bytes
     === foldMap (Sig.runStateMachine stateMachine) (ByteString.unpack bytes)

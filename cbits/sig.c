@@ -25,9 +25,17 @@ typedef union {
     v32qi x32[2];
 } v64;
 
-/* All of the following shuffle{m}x{n} functions implement the ⊗ₘₙ operator from
-   the paper for specific values of m and n.
+/* All of the following `shuffle{m}x{n}` functions implement the `⊗ₘₙ` operator
+   from the paper for specific values of `m` and `n`.
+
+   Note that we might be able to slightly optimize some of the `shuffle{m}x{n}`
+   functions for `m=64` or `n=64` by defining their behavior directly in terms
+   of builtins instead of defining them recursively in terms of smaller shuffle
+   functions.  However, there is not much point to doing this since most runs
+   hit the faster paths of `m<=32` and `n<=32` and the corresponding shuffle
+   functions are very efficient.
 */
+
 static inline v16qi shuffle16x16(v16qi m, v16qi n) {
     return __builtin_ia32_pshufb128(n, m);
 }
@@ -53,6 +61,18 @@ static inline v16qi shuffle16x32(v16qi m, v32qi n) {
 }
 
 static inline v32qi shuffle32x32(v32qi m, v32qi n) {
+    // You might be wondering why this function is not just implemented as:
+    //
+    //     return __builtin_ia32_pshufb256(n, m);
+    //
+    // This because the name of the `__builtin_ia32_pshufb256` intrinsic is
+    // highly misleading and does not compose two 32 byte transition arrays.
+    // In other words, it is not the same as `__builtin_ia32_pshufb128` scaled
+    // up to twice the input size.
+    //
+    // What `__builtin_ia32_pshufb256` actually does is less useful and it's
+    // actually only useful for efficiently implementing the above
+    // `shuffle32x16` function.
     v32 n_ = { .x32 = n };
     v32qi lo0 = shuffle32x16(m     , n_.x16[0]);
     v32qi lo1 = shuffle32x16(m % 16, n_.x16[1]);
@@ -88,6 +108,13 @@ static inline v64qi shuffle64x64(v64qi m, v64qi n) {
     v64 result = { .x32 = { lo, hi } };
     return result.x64;
 }
+
+/* All of the following `factor{m}x{n}` functions implement the `Factor`
+   function from the paper that factors a transition array `s` into two
+   transition arrays, `left` and `unique`, such that `left ⊗ₘₙ unique = s`.
+   The `left` transition array is called `L` in the paper and the `unique`
+   transition array is called `U` in the paper.
+*/
 
 typedef struct {
   v64qi left;
@@ -185,6 +212,7 @@ factorization32x64 factor32x64(v64qi s) {
     return result;
 }
 
+// Count the number of unique elements in a vector of 64 bytes
 int num_unique64(v64qi x) {
     unsigned long long bitset = 0;
     size_t i;
@@ -196,6 +224,7 @@ int num_unique64(v64qi x) {
     return __builtin_popcountll(bitset);
 }
 
+// Count the number of unique elements in a vector of 32 bytes
 int num_unique32(v32qi x) {
     uint64_t bitset = 0;
     size_t i;
@@ -207,15 +236,49 @@ int num_unique32(v32qi x) {
     return __builtin_popcountll(bitset);
 }
 
+/* This implements all of the optimizations from the paper, including:
+
+   * The convergence optimization
+   * The range coalescing optimization
+   * The instruction-level parallelism optimization
+
+   … but only for up to 64 states.
+
+   There are a few things this code does that do not obviously follow from
+   reading the paper:
+
+   * This only implements the instruction-level parallelism trick for the
+     "fast path" where m=16 and n=16.  Cursory benchmarking seems to indicate
+     that there is no performance benefit to implementing this optimization for
+     larger m or n.
+
+   * This code does not use a single loop with dynamic sizes for `m` and `n`.
+     Instead, this defines an inner loop (named `loop{m}x{n}`) for every
+     permutation of m={64,32,16} and n={64,32,16}.  This provides two benefits:
+
+     * We don't need to dynamically dispatch on the size of `m` and `n` when
+       composing ("shuffling") transition arrays.  This lets us statically
+       select the appropriate `shuffle{m}x{n}` functions for each inner loop.
+
+     * When we hit the "fast path" (m=16 and n=16) then we can completely
+       turn off all dynamic checks to further improve the efficiency of the
+       inner loop.
+
+     The downside of doing things this way is that the code has a lot of
+     copy-and-paste boilerplate that cannot be easily factored away (via either
+     functions or macros), which is one of the reasons why this code only goes
+     handles to 64 states.
+*/
 void run(char *in, size_t len, unsigned char *tBytes, char *out) {
     unsigned char a, b, c, d, e, f, g;
-    int i, j, uniques;
+    int i, j, num_uniques;
 
     factorization16x64 factors16x64, t_factors16x64[256];
     factorization32x64 factors32x64, t_factors32x64[256];
     factorization16x32 factors16x32;
 
     v64qi t[256];
+
     v64qi s64 =
         {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15
         , 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
@@ -224,32 +287,30 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
         };
     v64qi l64 = s64;
 
-    v32qi t32[256][256];
-    v32qi *t32_current;
     v32qi s32;
 
-    v16qi t16[256][256];
-    v16qi *t16_current;
+    v32qi t32[256][256], *t32_current;
+    v16qi t16[256][256], *t16_current;
+
     v16qi s16, s16_0, s16_1, s16_2, s16_3, s16_4, s16_5;
 
     if (len == 0) {
         goto done;
     }
 
-    int maxUniques = 0;
+    int max_uniques = 0;
     for (i = 0; i < 256; i++) {
         for (j = 0; j < 64; j++) {
             t[i][j] = tBytes[64 * i + j];
         }
 
-        uniques = num_unique64(t[i]);
-        if (maxUniques < uniques) {
-          maxUniques = uniques;
+        num_uniques = num_unique64(t[i]);
+        if (max_uniques < num_uniques) {
+          max_uniques = num_uniques;
         }
     }
 
-    // TODO: Share work to compute range coalescing tables between threads
-    if (maxUniques <= 16) {
+    if (max_uniques <= 16) {
         for (i = 0; i < 256; i++) {
             t_factors16x64[i] = factor16x64(t[i]);
         }
@@ -267,7 +328,7 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
         i++;
 
         goto loop16x64;
-    } else if (maxUniques <= 32) {
+    } else if (max_uniques <= 32) {
         for (i = 0; i < 256; i++) {
             t_factors32x64[i] = factor32x64(t[i]);
         }
@@ -293,13 +354,13 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
 loop64x64:
     for (; i < len; i++) {
         if (i % 256 == 1) {
-            uniques = num_unique64(s64);
-            if (uniques <= 16) {
+            num_uniques = num_unique64(s64);
+            if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
               l64 = shuffle64x64(l64, factors16x64.left);
               goto loop64x16;
-            } else if (uniques <= 32) {
+            } else if (num_uniques <= 32) {
               factors32x64 = factor32x64(s64);
               s32 = factors32x64.unique;
               l64 = shuffle64x64(l64, factors32x64.left);
@@ -318,8 +379,8 @@ loop64x64:
 loop64x32:
     for (; i < len; i++) {
         if (i % 256 == 2) {
-            uniques = num_unique32(s32);
-            if (uniques <= 16) {
+            num_uniques = num_unique32(s32);
+            if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
               l64 = shuffle64x32(l64, factors16x32.left);
@@ -348,13 +409,13 @@ loop64x16:
 loop32x64:
    for (; i < len; i++) {
         if (i % 256 == 1) {
-            uniques = num_unique64(s64);
-            if (uniques <= 16) {
+            num_uniques = num_unique64(s64);
+            if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
               l64 = shuffle64x64(l64, factors16x64.left);
               goto loop32x16;
-            } else if (uniques <= 32) {
+            } else if (num_uniques <= 32) {
               factors32x64 = factor32x64(s64);
               s32 = factors32x64.unique;
               l64 = shuffle64x64(l64, factors32x64.left);
@@ -376,8 +437,8 @@ loop32x64:
 loop32x32:
     for (; i < len; i++) {
         if (i % 256 == 2) {
-            uniques = num_unique32(s32);
-            if (uniques <= 16) {
+            num_uniques = num_unique32(s32);
+            if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
               l64 = shuffle64x32(l64, factors16x32.left);
@@ -412,13 +473,13 @@ loop32x16:
 loop16x64:
    for (; i < len; i++) {
         if (i % 256 == 1) {
-            uniques = num_unique64(s64);
-            if (uniques <= 16) {
+            num_uniques = num_unique64(s64);
+            if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
               l64 = shuffle64x64(l64, factors16x64.left);
               goto loop16x16;
-            } else if (uniques <= 32) {
+            } else if (num_uniques <= 32) {
               factors32x64 = factor32x64(s64);
               s32 = factors32x64.unique;
               l64 = shuffle64x64(l64, factors32x64.left);
@@ -440,8 +501,8 @@ loop16x64:
 loop16x32:
     for (; i < len; i++) {
         if (i % 256 == 2) {
-            uniques = num_unique32(s32);
-            if (uniques <= 16) {
+            num_uniques = num_unique32(s32);
+            if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
               l64 = shuffle64x32(l64, factors16x32.left);
@@ -461,6 +522,24 @@ loop16x32:
     goto done;
 
 loop16x16:
+    // The magic fast path, which the state machine will hit if the following
+    // two conditions are satisfied:
+    //
+    // * No state has more than 16 possible state transitions
+    //
+    //   This condition is input-independent and depends on the state machine
+    //   itself, so some state machines will never hit this fast path.
+    //
+    // * The state machine converges to less than 16 active states
+    //
+    //   This condition is input-dependent, but highly likely.  The paper
+    //   shows that typical state machines converge to 16 active states in
+    //   fewer than 20 steps and even adversarial state machines still tend to
+    //   eventually converge to 16 or fewer steps.
+    //
+    // If you hit this fast path then you can expect speeds on the order of
+    // 1 GB / s / core, so it's worth spending the time to hand-roll the
+    // state machine to satisfy the first condition if possible.
     for (; i + 6 < len; i += 7) {
         a = in[i    ];
         b = in[i + 1];

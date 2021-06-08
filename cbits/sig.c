@@ -213,7 +213,7 @@ factorization32x64 factor32x64(v64qi s) {
 }
 
 // Count the number of unique elements in a vector of 64 bytes
-int num_unique64(v64qi x) {
+int num_uniques64(v64qi x) {
     unsigned long long bitset = 0;
     size_t i;
 
@@ -225,7 +225,7 @@ int num_unique64(v64qi x) {
 }
 
 // Count the number of unique elements in a vector of 32 bytes
-int num_unique32(v32qi x) {
+int num_uniques32(v32qi x) {
     uint64_t bitset = 0;
     size_t i;
 
@@ -236,13 +236,29 @@ int num_unique32(v32qi x) {
     return __builtin_popcountll(bitset);
 }
 
-/* This implements all of the optimizations from the paper, including:
+static v64qi identity =
+    {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15
+    , 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+    , 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47
+    , 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63
+    };
+
+/* These `run{n}` functions implement all of the optimizations from the paper,
+   including:
 
    * The convergence optimization
    * The range coalescing optimization
    * The instruction-level parallelism optimization
 
    … but only for up to 64 states.
+
+   The `run{n}` functions are named after the `n` used for the algorithm.
+   Since the maximum number of states is 64, the `run64` function corresponds to
+   the algorithm without the range coalescing optimization for the case where
+   the transition matrix cannot be coalesced into smaller matrices of range size
+   32 or smaller.  The `run32` and `run16` algorithms correspond to the cases
+   where the transition matrix can be coalesced into transition matrices of
+   range size 32 or 16, respectively.
 
    There are a few things this code does that do not obviously follow from
    reading the paper:
@@ -277,92 +293,39 @@ int num_unique32(v32qi x) {
 
      … where `a` is the last byte read from the input.
 */
-void run(char *in, size_t len, unsigned char *tBytes, char *out) {
-    unsigned char a, b, c, d, e, f, g;
+void run64(char *in, size_t len, unsigned char *t_bytes, char *out) {
+    unsigned char a;
+
     int i, j, num_uniques;
 
-    factorization16x64 factors16x64, t_factors16x64[256];
-    factorization32x64 factors32x64, t_factors32x64[256];
+    factorization16x64 factors16x64;
+    factorization32x64 factors32x64;
     factorization16x32 factors16x32;
 
     v64qi t[256];
 
-    v64qi s64 =
-        {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15
-        , 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
-        , 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47
-        , 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63
-        };
-    v64qi l64 = s64;
+    v64qi l64 = identity;
 
+    v64qi s64 = identity;
     v32qi s32;
-
-    v32qi t32[256][256], *t32_current;
-    v16qi t16[256][256], *t16_current;
-
-    v16qi s16, s16_0, s16_1, s16_2, s16_3, s16_4, s16_5;
+    v16qi s16;
 
     if (len == 0) {
         goto done;
     }
 
-    int max_uniques = 0;
     for (i = 0; i < 256; i++) {
         for (j = 0; j < 64; j++) {
-            t[i][j] = tBytes[64 * i + j];
-        }
-
-        num_uniques = num_unique64(t[i]);
-        if (max_uniques < num_uniques) {
-          max_uniques = num_uniques;
+            t[i][j] = t_bytes[64 * i + j];
         }
     }
 
-    if (max_uniques <= 16) {
-        for (i = 0; i < 256; i++) {
-            t_factors16x64[i] = factor16x64(t[i]);
-        }
-
-        for (i = 0; i < 256; i++) {
-            for (j = 0; j < 256; j++) {
-                t16[i][j] = shuffle16x64(t_factors16x64[i].unique, t_factors16x64[j].left);
-            }
-        }
-
-        i = 0;
-        a = in[i];
-        s64 = t_factors16x64[a].left;
-        t16_current = t16[a];
-        i++;
-
-        goto loop16x64;
-    } else if (max_uniques <= 32) {
-        for (i = 0; i < 256; i++) {
-            t_factors32x64[i] = factor32x64(t[i]);
-        }
-
-        for (i = 0; i < 256; i++) {
-            for (j = 0; j < 256; j++) {
-                t32[i][j] = shuffle32x64(t_factors32x64[i].unique, t_factors32x64[j].left);
-            }
-        }
-
-        i = 0;
-        a = in[i];
-        s64 = t_factors32x64[a].left;
-        t32_current = t32[a];
-        i++;
-
-        goto loop32x64;
-    } else {
-        i = 0;
-        goto loop64x64;
-    }
+    i = 0;
 
 loop64x64:
     for (; i < len; i++) {
         if (__builtin_expect_with_probability(i % 256 == 1, 0, 0.003906)) {
-            num_uniques = num_unique64(s64);
+            num_uniques = num_uniques64(s64);
             if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
@@ -387,7 +350,7 @@ loop64x64:
 loop64x32:
     for (; i < len; i++) {
         if (__builtin_expect_with_probability(i % 256 == 2, 0, 0.003906)) {
-            num_uniques = num_unique32(s32);
+            num_uniques = num_uniques32(s32);
             if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
@@ -414,10 +377,52 @@ loop64x16:
 
     goto done;
 
+done:
+    for (i = 0; i < 64; i++) {
+        out[i] = s64[i];
+    }
+}
+
+// TODO: Remember to premultiply by t_factors32x64[in[0]].eft and postmultiply
+// by t_factors32x64[in[n-1]].unique
+void run32(char *in, size_t len, unsigned char *t_bytes, char *out) {
+    unsigned char a;
+
+    int i, j, k, num_uniques;
+
+    factorization16x64 factors16x64;
+    factorization32x64 factors32x64;
+    factorization16x32 factors16x32;
+
+    v32qi t[256][256], *t_current;
+
+    v64qi l64 = identity;
+
+    v64qi s64 = identity;
+    v32qi s32;
+    v16qi s16;
+
+    if (len == 0) {
+        goto done;
+    }
+
+    for (i = 0; i < 256; i++) {
+        for (j = 0; j < 256; j++) {
+            for (k = 0; k < 32; k++) {
+                t[i][j][k] = t_bytes[(64 * 256) * i + 64 * j + k];
+            }
+        }
+    }
+
+    i = 0;
+    a = in[i];
+    t_current = t[a];
+    i++;
+
 loop32x64:
    for (; i < len; i++) {
         if (__builtin_expect_with_probability(i % 256 == 1, 0, 0.003906)) {
-            num_uniques = num_unique64(s64);
+            num_uniques = num_uniques64(s64);
             if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
@@ -432,12 +437,10 @@ loop32x64:
         }
 
         a = in[i];
-        s64 = shuffle64x32(s64, t32_current[a]);
-        t32_current = t32[a];
+        s64 = shuffle64x32(s64, t_current[a]);
+        t_current = t[a];
     }
 
-    a = in[i - 1];
-    s64 = shuffle64x32(s64, t_factors32x64[a].unique);
     s64 = shuffle64x64(l64, s64);
 
     goto done;
@@ -445,7 +448,7 @@ loop32x64:
 loop32x32:
     for (; i < len; i++) {
         if (__builtin_expect_with_probability(i % 256 == 2, 0, 0.003906)) {
-            num_uniques = num_unique32(s32);
+            num_uniques = num_uniques32(s32);
             if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
@@ -455,12 +458,10 @@ loop32x32:
         }
 
         a = in[i];
-        s32 = shuffle32x32(s32, t32_current[a]);
-        t32_current = t32[a];
+        s32 = shuffle32x32(s32, t_current[a]);
+        t_current = t[a];
     }
 
-    a = in[i - 1];
-    s32 = shuffle32x32(s32, t_factors32x64[a].unique);
     s64 = shuffle64x32(l64, s32);
 
     goto done;
@@ -468,20 +469,60 @@ loop32x32:
 loop32x16:
     for (; i < len; i++) {
         a = in[i];
-        s16 = shuffle16x32(s16, t32_current[a]);
-        t32_current = t32[a];
+        s16 = shuffle16x32(s16, t_current[a]);
+        t_current = t[a];
     }
 
-    a = in[i - 1];
-    s16 = shuffle16x32(s16, t_factors32x64[a].unique);
     s64 = shuffle64x16(l64, s16);
 
     goto done;
 
+done:
+    for (i = 0; i < 64; i++) {
+        out[i] = s64[i];
+    }
+}
+
+// TODO: Remember to premultiply by t_factors16x64[in[0]].left and postmultiply
+// by t_factors16x64[in[n-1]].unique
+void run16(char *in, size_t len, unsigned char *t_bytes, char *out) {
+    unsigned char a, b, c, d, e, f, g;
+
+    int i, j, k, num_uniques;
+
+    factorization16x64 factors16x64;
+    factorization32x64 factors32x64;
+    factorization16x32 factors16x32;
+
+    v16qi t[256][256], *t_current;
+
+    v64qi l64 = identity;
+
+    v64qi s64 = identity;
+    v32qi s32;
+    v16qi s16, s16_0, s16_1, s16_2, s16_3, s16_4, s16_5;
+
+    if (len == 0) {
+        goto done;
+    }
+
+    for (i = 0; i < 256; i++) {
+        for (j = 0; j < 256; j++) {
+            for (k = 0; k < 16; k++) {
+                t[i][j][k] = t_bytes[(64 * 256) * i + 64 * j + k];
+            }
+        }
+    }
+
+    i = 0;
+    a = in[i];
+    t_current = t[a];
+    i++;
+
 loop16x64:
-   for (; i < len; i++) {
+    for (; i < len; i++) {
         if (__builtin_expect_with_probability(i % 256 == 1, 0, 0.003906)) {
-            num_uniques = num_unique64(s64);
+            num_uniques = num_uniques64(s64);
             if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
               s16 = factors16x64.unique;
@@ -496,12 +537,10 @@ loop16x64:
         }
 
         a = in[i];
-        s64 = shuffle64x16(s64, t16_current[a]);
-        t16_current = t16[a];
+        s64 = shuffle64x16(s64, t_current[a]);
+        t_current = t[a];
     }
 
-    a = in[i - 1];
-    s64 = shuffle64x16(s64, t_factors16x64[a].unique);
     s64 = shuffle64x64(l64, s64);
 
     goto done;
@@ -509,7 +548,7 @@ loop16x64:
 loop16x32:
     for (; i < len; i++) {
         if (__builtin_expect_with_probability(i % 256 == 2, 0, 0.003906)) {
-            num_uniques = num_unique32(s32);
+            num_uniques = num_uniques32(s32);
             if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
               s16 = factors16x32.unique;
@@ -519,12 +558,10 @@ loop16x32:
         }
 
         a = in[i];
-        s32 = shuffle32x16(s32, t16_current[a]);
-        t16_current = t16[a];
+        s32 = shuffle32x16(s32, t_current[a]);
+        t_current = t[a];
     }
 
-    a = in[i - 1];
-    s32 = shuffle32x16(s32, t_factors16x64[a].unique);
     s64 = shuffle64x32(l64, s32);
 
     goto done;
@@ -557,27 +594,25 @@ loop16x16:
         f = in[i + 5];
         g = in[i + 6];
 
-        s16_0 = shuffle16x16(s16, t16_current[a]);
-        s16_1 = shuffle16x16(t16[a][b], t16[b][c]);
-        s16_2 = shuffle16x16(t16[c][d], t16[d][e]);
-        s16_3 = shuffle16x16(t16[e][f], t16[f][g]);
+        s16_0 = shuffle16x16(s16, t_current[a]);
+        s16_1 = shuffle16x16(t[a][b], t[b][c]);
+        s16_2 = shuffle16x16(t[c][d], t[d][e]);
+        s16_3 = shuffle16x16(t[e][f], t[f][g]);
 
         s16_4 = shuffle16x16(s16_0, s16_1);
         s16_5 = shuffle16x16(s16_2, s16_3);
 
         s16 = shuffle16x16(s16_4, s16_5);
 
-        t16_current = t16[g];
+        t_current = t[g];
     }
 
     for (; i < len; i++) {
         a = in[i];
-        s16 = shuffle16x16(s16, t16_current[a]);
-        t16_current = t16[a];
+        s16 = shuffle16x16(s16, t_current[a]);
+        t_current = t[a];
     }
 
-    a = in[i - 1];
-    s16 = shuffle16x16(s16, t_factors16x64[a].unique);
     s64 = shuffle64x16(l64, s16);
 
     goto done;

@@ -353,7 +353,7 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
 
 loop64x64:
     for (; i < len; i++) {
-        if (i % 256 == 1) {
+        if (__builtin_expect_with_probability(i % 256 == 1, 0, 0.003906)) {
             num_uniques = num_unique64(s64);
             if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
@@ -378,7 +378,7 @@ loop64x64:
 
 loop64x32:
     for (; i < len; i++) {
-        if (i % 256 == 2) {
+        if (__builtin_expect_with_probability(i % 256 == 2, 0, 0.003906)) {
             num_uniques = num_unique32(s32);
             if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
@@ -408,7 +408,7 @@ loop64x16:
 
 loop32x64:
    for (; i < len; i++) {
-        if (i % 256 == 1) {
+        if (__builtin_expect_with_probability(i % 256 == 1, 0, 0.003906)) {
             num_uniques = num_unique64(s64);
             if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
@@ -436,7 +436,7 @@ loop32x64:
 
 loop32x32:
     for (; i < len; i++) {
-        if (i % 256 == 2) {
+        if (__builtin_expect_with_probability(i % 256 == 2, 0, 0.003906)) {
             num_uniques = num_unique32(s32);
             if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);
@@ -472,7 +472,7 @@ loop32x16:
 
 loop16x64:
    for (; i < len; i++) {
-        if (i % 256 == 1) {
+        if (__builtin_expect_with_probability(i % 256 == 1, 0, 0.003906)) {
             num_uniques = num_unique64(s64);
             if (num_uniques <= 16) {
               factors16x64 = factor16x64(s64);
@@ -500,7 +500,7 @@ loop16x64:
 
 loop16x32:
     for (; i < len; i++) {
-        if (i % 256 == 2) {
+        if (__builtin_expect_with_probability(i % 256 == 2, 0, 0.003906)) {
             num_uniques = num_unique32(s32);
             if (num_uniques <= 16) {
               factors16x32 = factor16x32(s32);

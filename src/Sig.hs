@@ -7,23 +7,25 @@
     > finite-state machines." ACM SIGARCH Computer Architecture News. Vol. 42.
     > No. 1. ACM, 2014.
 
-    These state machines are \"parallel\" in two senses of the word:
+    These state machines are \"parallel\" in three senses of the word:
 
     * The machine simulates multiple states in parallel
     * You can process the input `ByteString` itself in parallel
+    * The fast path takes advantage of CPU instruction-level parallelism
 
     This state machine implementation gives excellent performance which also
-    scales linearly with the number of available cores
+    scales linearly with the number of available cores.  In particular, if your
+    state machine has no more than 16 possible transitions per state then you
+    can expect processing speeds as high as 1 GB \/ second \/ core.
 
     The main limitations of this library are that:
 
-    * the state machines are currently limited to 64 states
+    * The state machines are currently limited to 64 states
 
       The original paper describes supporting 256 states, but this package only
-      goes up to 64 states in order to support all of the optimizations from the
-      paper while keeping the C code manageable.
+      goes up to 64 states in order to keep the C code somewhat manageable.
 
-    * this package has to be built using @gcc@ as the C compiler and can only
+    * This package has to be built using @gcc@ as the C compiler and can only
       be run on architectures that supports @-mssse3@, @-msse4.2@, and @-mavx2@.
 
       Most processors built since 2012 support these SIMD extensions. See:
@@ -124,7 +126,7 @@ import qualified Foreign.Marshal.Unsafe
 {-| This library supports only state machines with up to 64 states (and may
     support more in the future)
 
-    Rather than modeling the `State` as an enum with 64 alternatives we use an
+    Rather than modeling the `State` as an enum with 64 alternatives we use a
     `Word8` for simplicity.  States greater than 64 are ignored
 -}
 type State = Word8
@@ -214,7 +216,7 @@ chunkBytes n bytes =
 
     The implementation is equivalent to:
 
-    prop> run n (StateMachine f) bytes == foldMap f (ByteString.unpack bytes)
+    prop> run threads stateMachine bytes === foldMap (runStateMachine stateMachine) (Data.ByteString.unpack bytes)
 
     ... except much more efficient and parallel
 

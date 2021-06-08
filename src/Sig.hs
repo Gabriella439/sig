@@ -15,8 +15,7 @@
 
     The performance of this algorithm is /highly/ dependent on the state machine
     you provide the algorithm.  For example, some state machines can lead to
-    abysmal performance of only 16 MB \/ second \/ core (the "slow path"), which
-    can be beaten by a serial implementation in pure Haskell.  However, other
+    abysmal performance of only 16 MB \/ second \/ core.  However, other
     state machines will give peak performance on the order of
     1 GB \/ second \/ core.
 

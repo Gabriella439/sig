@@ -73,7 +73,6 @@ static inline v64qi shuffle64x64(v64qi x, v64qi y) {
     v64 y_ = { .x64 = y };
     v32qi lo = shuffle64x32(x, y_.x32[0]);
     v32qi hi = shuffle64x32(x, y_.x32[1]);
-
     v64 result = { .x32 = { lo, hi } };
     return result.x64;
 }
@@ -82,15 +81,15 @@ typedef struct {
   v64qi left;
   v16qi unique;
   size_t num_unique;
-} factorization16;
+} factorization16x64;
 
-factorization16 factor16x64(v64qi s) {
+factorization16x64 factor16x64(v64qi s) {
     size_t i;
     char value;
     size_t lookup[64] = { 0 };
 
     uint64_t bitset = 0;
-    factorization16 result =
+    factorization16x64 result =
         { .left = { 0 }, .unique = { 0 }, .num_unique = 0 };
 
     for (i = 0; i < 64; i++) {
@@ -110,15 +109,19 @@ factorization16 factor16x64(v64qi s) {
     return result;
 }
 
-// TODO: This should use a `factorization16x32` data structure with only 32
-// bytes for the `l` field
-factorization16 factor16x32(v32qi s) {
+typedef struct {
+  v32qi left;
+  v16qi unique;
+  size_t num_unique;
+} factorization16x32;
+
+factorization16x32 factor16x32(v32qi s) {
     size_t i;
     char value;
     size_t lookup[64] = { 0 };
 
     uint64_t bitset = 0;
-    factorization16 result =
+    factorization16x32 result =
         { .left = { 0 }, .unique = { 0 }, .num_unique = 0 };
 
     for (i = 0; i < 32; i++) {
@@ -142,15 +145,15 @@ typedef struct {
   v64qi left;
   v32qi unique;
   size_t num_unique;
-} factorization32;
+} factorization32x64;
 
-factorization32 factor32x64(v64qi s) {
+factorization32x64 factor32x64(v64qi s) {
     size_t i;
     char value;
     size_t lookup[64] = { 0 };
 
     uint64_t bitset = 0;
-    factorization32 result =
+    factorization32x64 result =
         { .left = { 0 }, .unique = { 0 }, .num_unique = 0 };
 
     for (i = 0; i < 64; i++) {
@@ -196,8 +199,9 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
     unsigned char a, b, c, d, e, f, g;
     int i, j, uniques;
 
-    factorization16 factors16, t_factors16[256];
-    factorization32 factors32, t_factors32[256];
+    factorization16x64 factors16x64, t_factors16x64[256];
+    factorization32x64 factors32x64, t_factors32x64[256];
+    factorization16x32 factors16x32;
 
     v64qi t[256];
     v64qi s64 =
@@ -235,36 +239,36 @@ void run(char *in, size_t len, unsigned char *tBytes, char *out) {
     // TODO: Share work to compute range coalescing tables between threads
     if (maxUniques <= 16) {
         for (i = 0; i < 256; i++) {
-            t_factors16[i] = factor16x64(t[i]);
+            t_factors16x64[i] = factor16x64(t[i]);
         }
 
         for (i = 0; i < 256; i++) {
             for (j = 0; j < 256; j++) {
-                t16[i][j] = shuffle64x16(t_factors16[j].left, t_factors16[i].unique);
+                t16[i][j] = shuffle64x16(t_factors16x64[j].left, t_factors16x64[i].unique);
             }
         }
 
         i = 0;
         a = in[i];
-        s64 = t_factors16[a].left;
+        s64 = t_factors16x64[a].left;
         t16_current = t16[a];
         i++;
 
         goto loop16x64;
     } else if (maxUniques <= 32) {
         for (i = 0; i < 256; i++) {
-            t_factors32[i] = factor32x64(t[i]);
+            t_factors32x64[i] = factor32x64(t[i]);
         }
 
         for (i = 0; i < 256; i++) {
             for (j = 0; j < 256; j++) {
-                t32[i][j] = shuffle64x32(t_factors32[j].left, t_factors32[i].unique);
+                t32[i][j] = shuffle64x32(t_factors32x64[j].left, t_factors32x64[i].unique);
             }
         }
 
         i = 0;
         a = in[i];
-        s64 = t_factors32[a].left;
+        s64 = t_factors32x64[a].left;
         t32_current = t32[a];
         i++;
 
@@ -279,14 +283,14 @@ loop64x64:
         if (i % 256 == 1) {
             uniques = num_unique64(s64);
             if (uniques <= 16) {
-              factors16 = factor16x64(s64);
-              s16 = factors16.unique;
-              l64 = shuffle64x64(factors16.left, l64);
+              factors16x64 = factor16x64(s64);
+              s16 = factors16x64.unique;
+              l64 = shuffle64x64(factors16x64.left, l64);
               goto loop64x16;
             } else if (uniques <= 32) {
-              factors32 = factor32x64(s64);
-              s32 = factors32.unique;
-              l64 = shuffle64x64(factors32.left, l64);
+              factors32x64 = factor32x64(s64);
+              s32 = factors32x64.unique;
+              l64 = shuffle64x64(factors32x64.left, l64);
               goto loop64x32;
             }
         }
@@ -304,9 +308,9 @@ loop64x32:
         if (i % 256 == 2) {
             uniques = num_unique32(s32);
             if (uniques <= 16) {
-              factors16 = factor16x32(s32);
-              s16 = factors16.unique;
-              l64 = shuffle64x64(factors16.left, l64);
+              factors16x32 = factor16x32(s32);
+              s16 = factors16x32.unique;
+              l64 = shuffle32x64(factors16x32.left, l64);
               goto loop64x16;
             }
         }
@@ -334,14 +338,14 @@ loop32x64:
         if (i % 256 == 1) {
             uniques = num_unique64(s64);
             if (uniques <= 16) {
-              factors16 = factor16x64(s64);
-              s16 = factors16.unique;
-              l64 = shuffle64x64(factors16.left, l64);
+              factors16x64 = factor16x64(s64);
+              s16 = factors16x64.unique;
+              l64 = shuffle64x64(factors16x64.left, l64);
               goto loop32x16;
             } else if (uniques <= 32) {
-              factors32 = factor32x64(s64);
-              s32 = factors32.unique;
-              l64 = shuffle64x64(factors32.left, l64);
+              factors32x64 = factor32x64(s64);
+              s32 = factors32x64.unique;
+              l64 = shuffle64x64(factors32x64.left, l64);
               goto loop32x32;
             }
         }
@@ -352,7 +356,7 @@ loop32x64:
     }
 
     a = in[i - 1];
-    s64 = shuffle32x64(t_factors32[a].unique, s64);
+    s64 = shuffle32x64(t_factors32x64[a].unique, s64);
     s64 = shuffle64x64(s64, l64);
 
     goto done;
@@ -362,9 +366,9 @@ loop32x32:
         if (i % 256 == 2) {
             uniques = num_unique32(s32);
             if (uniques <= 16) {
-              factors16 = factor16x32(s32);
-              s16 = factors16.unique;
-              l64 = shuffle64x64(factors16.left, l64);
+              factors16x32 = factor16x32(s32);
+              s16 = factors16x32.unique;
+              l64 = shuffle32x64(factors16x32.left, l64);
               goto loop32x16;
             }
         }
@@ -375,7 +379,7 @@ loop32x32:
     }
 
     a = in[i - 1];
-    s32 = shuffle32x32(t_factors32[a].unique, s32);
+    s32 = shuffle32x32(t_factors32x64[a].unique, s32);
     s64 = shuffle32x64(s32, l64);
 
     goto done;
@@ -388,7 +392,7 @@ loop32x16:
     }
 
     a = in[i - 1];
-    s16 = shuffle32x16(t_factors32[a].unique, s16);
+    s16 = shuffle32x16(t_factors32x64[a].unique, s16);
     s64 = shuffle16x64(s16, l64);
 
     goto done;
@@ -398,14 +402,14 @@ loop16x64:
         if (i % 256 == 1) {
             uniques = num_unique64(s64);
             if (uniques <= 16) {
-              factors16 = factor16x64(s64);
-              s16 = factors16.unique;
-              l64 = shuffle64x64(factors16.left, l64);
+              factors16x64 = factor16x64(s64);
+              s16 = factors16x64.unique;
+              l64 = shuffle64x64(factors16x64.left, l64);
               goto loop16x16;
             } else if (uniques <= 32) {
-              factors32 = factor32x64(s64);
-              s32 = factors32.unique;
-              l64 = shuffle64x64(factors32.left, l64);
+              factors32x64 = factor32x64(s64);
+              s32 = factors32x64.unique;
+              l64 = shuffle64x64(factors32x64.left, l64);
               goto loop16x32;
             }
         }
@@ -416,7 +420,7 @@ loop16x64:
     }
 
     a = in[i - 1];
-    s64 = shuffle16x64(t_factors16[a].unique, s64);
+    s64 = shuffle16x64(t_factors16x64[a].unique, s64);
     s64 = shuffle64x64(s64, l64);
 
     goto done;
@@ -426,9 +430,9 @@ loop16x32:
         if (i % 256 == 2) {
             uniques = num_unique32(s32);
             if (uniques <= 16) {
-              factors16 = factor16x32(s32);
-              s16 = factors16.unique;
-              l64 = shuffle64x64(factors16.left, l64);
+              factors16x32 = factor16x32(s32);
+              s16 = factors16x32.unique;
+              l64 = shuffle32x64(factors16x32.left, l64);
               goto loop16x16;
             }
         }
@@ -439,7 +443,7 @@ loop16x32:
     }
 
     a = in[i - 1];
-    s32 = shuffle16x32(t_factors16[a].unique, s32);
+    s32 = shuffle16x32(t_factors16x64[a].unique, s32);
     s64 = shuffle32x64(s32, l64);
 
     goto done;
@@ -474,7 +478,7 @@ loop16x16:
     }
 
     a = in[i - 1];
-    s16 = shuffle16x16(t_factors16[a].unique, s16);
+    s16 = shuffle16x16(t_factors16x64[a].unique, s16);
     s64 = shuffle16x64(s16, l64);
 
     goto done;

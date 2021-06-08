@@ -268,6 +268,14 @@ int num_unique32(v32qi x) {
      copy-and-paste boilerplate that cannot be easily factored away (via either
      functions or macros), which is one of the reasons why this code only goes
      handles to 64 states.
+
+  * The paper omits that you need one final shuffle in order to compute the
+     final state if you implement the range coalescing optimization.
+     Specifically, you need to do this last step:
+
+         S = S ⊗ Uₐ
+
+     … where `a` is the last byte read from the input.
 */
 void run(char *in, size_t len, unsigned char *tBytes, char *out) {
     unsigned char a, b, c, d, e, f, g;

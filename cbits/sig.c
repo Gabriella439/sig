@@ -87,54 +87,55 @@ typedef struct {
 factorization16 factor16x64(v64qi s) {
     size_t i;
     char value;
-    size_t lookup[64];
+    size_t lookup[64] = { 0 };
 
     uint64_t bitset = 0;
-    factorization16 result =
-        { .l = { 0 }, .unique = { 0 }, .num_unique = 0 };
+    factorization16 result = { .l = { 0 }, .unique = { 0 }, .num_unique = 0 };
 
     for (i = 0; i < 64; i++) {
-      value = s[i];
+        value = s[i];
 
-      if ((bitset >> value) & 0x1) {
-          result.l[i] = lookup[value];
-      } else {
-          bitset |= 0x1 << value;
-          result.unique[result.num_unique] = value;
-          lookup[value] = result.num_unique;
-          result.l[i] = result.num_unique;
-          result.num_unique++;
-      }
+        if ((bitset >> value) & 0x1ull) {
+            result.l[i] = lookup[value];
+        } else {
+            bitset |= 0x1ull << value;
+            result.unique[result.num_unique] = value;
+            lookup[value] = result.num_unique;
+            result.l[i] = result.num_unique;
+            result.num_unique++;
+        }
     }
 
     return result;
 }
 
+// TODO: This should use a `factorization16x32` data structure with only 32
+// bytes for the `l` field
 factorization16 factor16x32(v32qi s) {
     size_t i;
     char value;
-    size_t lookup[64];
+    size_t lookup[64] = { 0 };
 
     uint64_t bitset = 0;
-    factorization16 result =
-        { .l = { 0 }, .unique = { 0 }, .num_unique = 0 };
+    factorization16 result = { .l = { 0 }, .unique = { 0 }, .num_unique = 0 };
 
     for (i = 0; i < 32; i++) {
-      value = s[i];
+        value = s[i];
 
-      if ((bitset >> value) & 0x1) {
-          result.l[i] = lookup[value];
-      } else {
-          bitset |= 0x1 << value;
-          result.unique[result.num_unique] = value;
-          lookup[value] = result.num_unique;
-          result.l[i] = result.num_unique;
-          result.num_unique++;
-      }
+        if ((bitset >> value) & 0x1ull) {
+            result.l[i] = lookup[value];
+        } else {
+            bitset |= 0x1ull << value;
+            result.unique[result.num_unique] = value;
+            lookup[value] = result.num_unique;
+            result.l[i] = result.num_unique;
+            result.num_unique++;
+        }
     }
 
     return result;
 }
+
 typedef struct {
   v64qi l;
   v32qi unique;
@@ -144,34 +145,34 @@ typedef struct {
 factorization32 factor32x64(v64qi s) {
     size_t i;
     char value;
-    size_t lookup[64];
+    size_t lookup[64] = { 0 };
 
     uint64_t bitset = 0;
-    factorization32 result =
-        { .l = { 0 }, .unique = { 0 }, .num_unique = 0 };
+    factorization32 result = { .l = { 0 }, .unique = { 0 }, .num_unique = 0 };
 
     for (i = 0; i < 64; i++) {
-      value = s[i];
+        value = s[i];
 
-      if ((bitset >> value) & 0x1) {
-          result.l[i] = lookup[value];
-      } else {
-          bitset |= 0x1 << value;
-          result.unique[result.num_unique] = value;
-          lookup[value] = result.num_unique;
-          result.l[i] = result.num_unique;
-          result.num_unique++;
-      }
+        if ((bitset >> value) & 0x1ull) {
+            result.l[i] = lookup[value];
+        } else {
+            bitset |= 0x1ull << value;
+            result.unique[result.num_unique] = value;
+            lookup[value] = result.num_unique;
+            result.l[i] = result.num_unique;
+            result.num_unique++;
+        }
     }
 
     return result;
 }
+
 int num_unique64(v64qi x) {
-    uint64_t bitset = 0;
+    unsigned long long bitset = 0;
     size_t i;
 
     for (i = 0; i < 64; i++) {
-      bitset |= 0x1 << x[i];
+      bitset |= 0x1ull << x[i];
     }
 
     return __builtin_popcountll(bitset);
@@ -182,7 +183,7 @@ int num_unique32(v32qi x) {
     size_t i;
 
     for (i = 0; i < 32; i++) {
-      bitset |= 0x1 << x[i];
+      bitset |= 0x1ull << x[i];
     }
 
     return __builtin_popcountll(bitset);

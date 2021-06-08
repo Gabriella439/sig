@@ -172,7 +172,7 @@ instance Eq StateMachine where
 
 instance Show StateMachine where
     showsPrec _ stateMachine =
-        ("(Data.Binary.decode (Data.ByteString.Lazy.pack " <>) . showsPrec 9 (ByteString.Lazy.unpack (Binary.encode stateMachine)) . (") :: Sig.Transition)" <>)
+        ("(Data.Binary.decode (Data.ByteString.Lazy.pack " <>) . showsPrec 9 (ByteString.Lazy.unpack (Binary.encode stateMachine)) . (") :: Sig.StateMachine)" <>)
 
 {-| Convenient utility to build a `StateMachine` from a function of two
     arguments

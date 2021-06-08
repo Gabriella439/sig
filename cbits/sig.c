@@ -533,7 +533,7 @@ loop16x16:
     // The magic fast path, which the state machine will hit if the following
     // two conditions are satisfied:
     //
-    // * No state has more than 16 possible state transitions
+    // * No input byte produces more than 16 possible states
     //
     //   This condition is input-independent and depends on the state machine
     //   itself, so some state machines will never hit this fast path.

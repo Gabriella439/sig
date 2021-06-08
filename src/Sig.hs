@@ -13,10 +13,23 @@
     * You can process the input `ByteString` itself in parallel
     * The fast path takes advantage of CPU instruction-level parallelism
 
-    This state machine implementation gives excellent performance which also
-    scales linearly with the number of available cores.  In particular, if your
-    state machine has no more than 16 possible transitions per state then you
-    can expect processing speeds as high as 1 GB \/ second \/ core.
+    The performance of this algorithm is /highly/ dependent on the state machine
+    you provide the algorithm.  For example, some state machines can lead to
+    abysmal performance of only 16 MB \/ second \/ core (the "slow path"), which
+    can be beaten by a serial implementation in pure Haskell.  However, other
+    state machines will give peak performance on the order of
+    1 GB \/ second \/ core.
+
+    The main thing that affects performance is the number of states reachable
+    for each possible input byte (i.e. the \"rank\" of the state machine).  If
+    each possible input byte transitions to no more than 16 possible destination
+    states then you will get the best performance.  However, each possible input
+    byte does not necessarily need to transition to the same 16 possible
+    destination states.
+
+    If you still didn't understand that then you can use the `rank` function in
+    this module on a `StateMachine` to diagnose its performance: if the result
+    is 16 or less then you can expect the best performance.
 
     The main limitations of this library are that:
 
@@ -45,6 +58,7 @@ module Sig
     , maxStates
     , Transition(..)
     , StateMachine(..)
+    , rank
 
       -- * Running state machines
     , run
@@ -63,6 +77,7 @@ import qualified Data.Binary                 as Binary
 import qualified Data.ByteString             as ByteString
 import qualified Data.ByteString.Lazy        as ByteString.Lazy
 import qualified Data.ByteString.Unsafe      as ByteString.Unsafe
+import qualified Data.List                   as List
 import qualified Data.Vector                 as Vector
 import qualified Foreign
 import qualified Foreign.Marshal.Unsafe
@@ -175,6 +190,21 @@ instance Eq StateMachine where
 instance Show StateMachine where
     showsPrec _ stateMachine =
         ("(Data.Binary.decode (Data.ByteString.Lazy.pack " <>) . showsPrec 9 (ByteString.Lazy.unpack (Binary.encode stateMachine)) . (") :: Sig.StateMachine)" <>)
+
+{-| Use this function to determine whether or not a state machine will give
+    good performance:
+
+    * A value of 16 or less will give the best performance
+    * A value of 32 or less will give intermediate performance
+    * A value of 64 or less will give the worst performance
+-}
+rank :: StateMachine -> Int
+rank stateMachine = minimum (map rankByte [minBound..maxBound])
+  where
+    rankByte byte =
+        length (List.nub (map toDestinationState [0..(maxStates-1)]))
+      where
+        toDestinationState = runTransition (runStateMachine stateMachine byte)
 
 {-| Convenient utility to build a `StateMachine` from a function of two
     arguments

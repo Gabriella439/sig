@@ -10,6 +10,9 @@ import qualified Sig
 {-| `StateMachine` for matching well-formed C-style comments
 
     The match succeeds if the state @0@ transitions to state @0@
+
+    >>> rank cStyleComments
+    2
 -}
 cStyleComments :: StateMachine
 cStyleComments = Sig.buildStateMachine f
@@ -38,6 +41,9 @@ cStyleComments = Sig.buildStateMachine f
     @"Hello, world!"@
 
     The match succeeds if state @0@ transitions to state @13@
+
+    >>> rank helloWorld
+    2
 -}
 helloWorld :: StateMachine
 helloWorld = Sig.buildStateMachine f
@@ -90,6 +96,9 @@ helloWorld = Sig.buildStateMachine f
     file is a Haskell module
 
     The match succeeds if state @0@ transitions to state @12@
+
+    >>> rank haskellModule
+    2
 -}
 haskellModule :: StateMachine
 haskellModule = Sig.buildStateMachine f
@@ -135,3 +144,17 @@ haskellModule = Sig.buildStateMachine f
     f 101 11 = 12
 
     f _    _ =  0
+
+{-| The `StateMachine` that does nothing, meaning that every state transitions
+    to itself regardless of the input
+
+    This is useful for benchmarking purposes since this never hits the fast
+    path:
+
+    >>> rank identity
+    64
+-}
+identity :: StateMachine
+identity = Sig.buildStateMachine f
+  where
+    f _ state = state

@@ -41,8 +41,6 @@ main = do
 
     bytes <- System.IO.MMap.mmapFileByteString pathString Nothing
 
-    -- The choice of `StateMachine` does not matter.  This library takes the
-    -- same time to match an input regardless of the state machine specification
     let transition = Sig.run numThreads Sig.Examples.haskellModule bytes
 
     print (runTransition transition 0 == 12)

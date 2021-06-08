@@ -155,6 +155,4 @@ haskellModule = Sig.buildStateMachine f
     64
 -}
 identity :: StateMachine
-identity = Sig.buildStateMachine f
-  where
-    f _ state = state
+identity = mempty

@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns   #-}
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 {-| This library provides a very efficient implementation of parallel state
     machines running over `ByteString` inputs based on the following paper:
@@ -174,6 +176,7 @@ instance Show Transition where
 
 -- | A `StateMachine` is a function from a byte (i.e. `Word8`) to a `Transition`
 newtype StateMachine = StateMachine { runStateMachine :: Word8 -> Transition }
+    deriving newtype (Semigroup, Monoid)
 
 instance Binary StateMachine where
     put (StateMachine k) = mapM_ (put . k) [minBound..maxBound]

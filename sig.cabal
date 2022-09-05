@@ -2,12 +2,12 @@ name:                sig
 version:             1.0.0
 synopsis:            Blazing fast signature detection
 -- description:         
-homepage:            https://github.com/Gabriel439/Haskell-Sig-Library
+homepage:            https://github.com/Gabriella439/Haskell-Sig-Library
 license:             BSD3
 license-file:        LICENSE
-author:              Gabriel Gonzalez
-maintainer:          Gabriel439@gmail.com
-copyright:           2018 Gabriel Gonzalez
+author:              Gabriella Gonzalez
+maintainer:          GenuineGabriella@gmail.com
+copyright:           2018 Gabriella Gonzalez
 category:            System
 build-type:          Simple
 cabal-version:       >=1.10
